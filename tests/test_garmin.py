@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from garmin_sleep_score_notification.garmin import SleepSummary
 
 
@@ -17,7 +19,12 @@ def test_parses_score_stages_and_qualifier():
     summary = SleepSummary.from_payload(payload(87, qualifier="EXCELLENT"))
     assert summary.score == 87
     assert summary.qualifier == "Excellent"
-    assert summary.stages() == "deep 1h 00m, light 4h 00m, rem 1h 30m, awake 0h 12m"
+    assert [(s.label, s.duration) for s in summary.breakdown()] == [
+        ("Deep", timedelta(hours=1)),
+        ("Light", timedelta(hours=4)),
+        ("REM", timedelta(minutes=90)),
+        ("Awake", timedelta(seconds=720)),
+    ]
 
 
 def test_qualifier_falls_back_to_score_bucket():

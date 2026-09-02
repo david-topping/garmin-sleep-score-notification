@@ -1,7 +1,7 @@
 [project]
 name = "garmin-sleep-score-notification"
 version = "0.1.0"
-description = "Fetch Garmin Connect sleep scores each morning and notify WhatsApp recipients via CallMeBot."
+description = "Fetch Garmin Connect sleep scores each morning and email them to recipients via Resend."
 readme = "README.md"
 authors = [
     { name = "David Topping", email = "topping.david11@gmail.com" }

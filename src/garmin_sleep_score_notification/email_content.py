@@ -1,17 +1,23 @@
 from __future__ import annotations
 
-import math
-from datetime import date
+from datetime import date, timedelta
 from html import escape
 
+from .donut import Donut
 from .garmin import SleepSummary
 
+_STAGE_COLOUR = {"Deep": "#2f4b7c", "Light": "#5b8def", "REM": "#7b61ff", "Awake": "#e8a33d"}
 _QUALIFIER_COLOUR = {
     "Excellent": "#2f8a4e",
     "Good": "#2f8a4e",
     "Fair": "#d98324",
     "Poor": "#c0392b",
 }
+
+
+def hm(td: timedelta) -> str:
+    total = int(td.total_seconds())
+    return f"{total // 3600}h {total % 3600 // 60:02d}m"
 
 
 class SleepEmail:
@@ -31,49 +37,20 @@ class SleepEmail:
             f"{self.person}'s Garmin sleep for {self.day:%A %d %B}",
             "",
             f"Score: {s.score}/100 ({s.qualifier})",
-            f"Total sleep: {SleepSummary.hm(s.asleep)}",
+            f"Total sleep: {hm(s.asleep)}",
             "",
         ]
-        lines += [f"  {st.label:<6} {SleepSummary.hm(st.duration):>7}" for st in s.breakdown()]
+        lines += [f"  {st.label:<6} {hm(st.duration):>7}" for st in s.breakdown()]
         return "\n".join(lines) + "\n"
 
-    @staticmethod
-    def _point(radius: float, angle: float) -> str:
-        a = math.radians(angle - 90)
-        return f"{60 + radius * math.cos(a):.2f} {60 + radius * math.sin(a):.2f}"
-
-    def _sector(self, colour: str, start: float, end: float) -> str:
-        outer, inner = 52.0, 34.0
-        large = 1 if end - start > 180 else 0
-        d = (
-            f"M {self._point(outer, start)} "
-            f"A {outer} {outer} 0 {large} 1 {self._point(outer, end)} "
-            f"L {self._point(inner, end)} "
-            f"A {inner} {inner} 0 {large} 0 {self._point(inner, start)} Z"
-        )
-        return f'<path d="{d}" fill="{colour}" stroke="#ffffff" stroke-width="1.5"/>'
-
     def _donut_svg(self) -> str:
-        stages = [st for st in self.summary.breakdown() if st.label != "Awake"]
         asleep = self.summary.asleep.total_seconds()
-        sectors, angle = [], 0.0
-        for st in stages:
-            frac = st.duration.total_seconds() / asleep if asleep else 0.0
-            sweep = min(frac * 360, 359.99)
-            if sweep > 0.5:
-                sectors.append(self._sector(st.colour, angle, angle + sweep))
-            angle += frac * 360
-        total = SleepSummary.hm(self.summary.asleep)
-        return (
-            '<svg width="180" height="180" viewBox="0 0 120 120" '
-            'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sleep stage breakdown">'
-            f'{"".join(sectors)}'
-            f'<text x="60" y="58" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" '
-            f'font-size="15" font-weight="bold" fill="#2b303b">{total}</text>'
-            '<text x="60" y="71" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" '
-            'font-size="7" letter-spacing="0.5" fill="#7b8394">TOTAL SLEEP</text>'
-            "</svg>"
-        )
+        segments = [
+            (_STAGE_COLOUR[st.label], st.duration.total_seconds() / asleep if asleep else 0.0)
+            for st in self.summary.breakdown()
+            if st.label != "Awake"
+        ]
+        return Donut(segments, hm(self.summary.asleep), "TOTAL SLEEP").svg()
 
     @property
     def html(self) -> str:
@@ -82,10 +59,10 @@ class SleepEmail:
         rows = "".join(
             f'<tr>'
             f'<td style="padding:6px 0;width:16px;"><span style="display:inline-block;width:10px;'
-            f'height:10px;border-radius:3px;background:{st.colour};"></span></td>'
+            f'height:10px;border-radius:3px;background:{_STAGE_COLOUR[st.label]};"></span></td>'
             f'<td style="padding:6px 10px;color:#4a5160;">{st.label}</td>'
             f'<td style="padding:6px 0;text-align:right;color:#2b303b;font-weight:600;">'
-            f'{SleepSummary.hm(st.duration)}</td>'
+            f'{hm(st.duration)}</td>'
             f'<td style="padding:6px 0 6px 14px;text-align:right;color:#7b8394;width:46px;">'
             f'{str(st.percent) + "%" if st.label != "Awake" else "&mdash;"}</td>'
             f'</tr>'
@@ -114,7 +91,7 @@ class SleepEmail:
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:8px;">
         {rows}
         <tr><td colspan="2" style="padding:9px 0 0;border-top:1px solid #e6e9ee;color:#4a5160;font-weight:600;">Total sleep</td>
-        <td colspan="2" style="padding:9px 0 0;border-top:1px solid #e6e9ee;text-align:right;color:#2b303b;font-weight:700;">{SleepSummary.hm(s.asleep)}</td></tr>
+        <td colspan="2" style="padding:9px 0 0;border-top:1px solid #e6e9ee;text-align:right;color:#2b303b;font-weight:700;">{hm(s.asleep)}</td></tr>
       </table>
     </td></tr>
     <tr><td style="padding:14px 8px;text-align:center;font-size:11px;color:#9aa0ac;">Garmin Connect &middot; garmin-sleep-notify</td></tr>

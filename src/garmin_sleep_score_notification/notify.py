@@ -8,7 +8,7 @@ from datetime import date, datetime
 from . import configure_logging
 from .config import Config, ConfigError, Person
 from .email_content import SleepEmail
-from .garmin import GarminError, GarminFetcher
+from .garmin import GarminError, GarminFetcher, SleepSummary
 from .mailer import EmailError, EmailSender
 from .state import SentState
 
@@ -37,18 +37,24 @@ class Notifier:
     def dry_run(self) -> int:
         day = self._today()
         for person in self.config.people:
-            try:
-                summary = GarminFetcher(person.token_store).fetch(day)
-            except GarminError as exc:
-                log.error("%s: %s", person.name, exc)
-                continue
+            summary = self._fetch(person, day)
             if summary is None:
-                log.info("%s: no sleep score yet", person.name)
                 continue
             email = SleepEmail(person.name, day, summary)
             recipients = ", ".join(r.name for r in person.recipients)
             log.info("%s: would email [%s]: %s", person.name, recipients, email.subject)
         return 0
+
+    def _fetch(self, person: Person, day: date) -> SleepSummary | None:
+        try:
+            summary = GarminFetcher(person.token_store).fetch(day)
+        except GarminError as exc:
+            log.error("%s: %s", person.name, exc)
+            self.failures += 1
+            return None
+        if summary is None:
+            log.info("%s: no sleep score yet, will retry next run", person.name)
+        return summary
 
     def _process(self, person: Person, day: date) -> None:
         recipients = {r.email for r in person.recipients}
@@ -56,15 +62,8 @@ class Notifier:
             log.info("%s: already sent today", person.name)
             return
 
-        try:
-            summary = GarminFetcher(person.token_store).fetch(day)
-        except GarminError as exc:
-            log.error("%s: %s", person.name, exc)
-            self.failures += 1
-            return
-
+        summary = self._fetch(person, day)
         if summary is None:
-            log.info("%s: no sleep score yet, will retry next run", person.name)
             return
 
         email = SleepEmail(person.name, day, summary)
