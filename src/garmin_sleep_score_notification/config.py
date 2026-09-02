@@ -16,21 +16,16 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class Recipient:
-    phone: str
-    apikey: str
+    email: str
     label: str = ""
 
     @property
     def name(self) -> str:
-        return self.label or self.phone
+        return self.label or self.email
 
     @classmethod
     def from_dict(cls, d: dict) -> Recipient:
-        return cls(
-            str(d["phone"]).strip(),
-            str(d["apikey"]).strip(),
-            str(d.get("label", "")).strip(),
-        )
+        return cls(str(d["email"]).strip(), str(d.get("label", "")).strip())
 
 
 @dataclass(frozen=True)
@@ -53,6 +48,8 @@ class Config:
     people: tuple[Person, ...]
     state_file: Path
     timezone: str | None
+    resend_api_key: str
+    email_from: str
 
     @classmethod
     def load(cls, people_file: str | os.PathLike[str] | None = None) -> Config:
@@ -80,4 +77,6 @@ class Config:
                 os.getenv("STATE_FILE") or PROJECT_ROOT / "state" / "sent_state.json"
             ).expanduser(),
             timezone=os.getenv("TIMEZONE") or os.getenv("TZ") or None,
+            resend_api_key=os.getenv("RESEND_API_KEY", ""),
+            email_from=os.getenv("EMAIL_FROM", "Garmin Sleep <onboarding@resend.dev>"),
         )

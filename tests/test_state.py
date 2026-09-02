@@ -3,40 +3,42 @@ from datetime import date
 from garmin_sleep_score_notification.state import SentState
 
 DAY = date(2026, 9, 2)
+W = "wallace@westwallaby.co.uk"
+G = "gromit@westwallaby.co.uk"
 
 
 def test_partial_then_complete(tmp_path):
     path = tmp_path / "s.json"
-    required = {"+1", "+2"}
+    required = {W, G}
 
     state = SentState(path)
-    assert not state.is_done("alice", DAY, required)
-    state.mark("alice", DAY, 82, "+1")
+    assert not state.is_done("wallace", DAY, required)
+    state.mark("wallace", DAY, 82, W)
     state.save()
 
     reloaded = SentState(path)
-    assert reloaded.sent_recipients("alice", DAY) == {"+1"}
-    assert not reloaded.is_done("alice", DAY, required)
-    reloaded.mark("alice", DAY, 82, "+2")
-    assert reloaded.is_done("alice", DAY, required)
+    assert reloaded.sent_recipients("wallace", DAY) == {W}
+    assert not reloaded.is_done("wallace", DAY, required)
+    reloaded.mark("wallace", DAY, 82, G)
+    assert reloaded.is_done("wallace", DAY, required)
 
 
 def test_resets_next_day(tmp_path):
     state = SentState(tmp_path / "s.json")
-    state.mark("alice", DAY, 82, "+1")
-    assert not state.is_done("alice", date(2026, 9, 3), {"+1"})
+    state.mark("wallace", DAY, 82, W)
+    assert not state.is_done("wallace", date(2026, 9, 3), {W})
 
 
 def test_prunes_old_days(tmp_path):
     path = tmp_path / "s.json"
     state = SentState(path)
-    state.mark("alice", date(2020, 1, 1), 50, "+1")
-    state.mark("alice", DAY, 82, "+1")
+    state.mark("wallace", date(2020, 1, 1), 50, W)
+    state.mark("wallace", DAY, 82, W)
     state.save()
-    assert SentState(path).sent_recipients("alice", date(2020, 1, 1)) == set()
+    assert SentState(path).sent_recipients("wallace", date(2020, 1, 1)) == set()
 
 
 def test_corrupt_file(tmp_path):
     path = tmp_path / "s.json"
     path.write_text("{ not json")
-    assert SentState(path).sent_recipients("alice", DAY) == set()
+    assert SentState(path).sent_recipients("wallace", DAY) == set()

@@ -1,42 +1,41 @@
 # garmin-sleep-score-notification
 
 Every morning, fetch each configured person's Garmin Connect sleep score + stage
-breakdown and send it to their WhatsApp recipients via the phone-free
-[CallMeBot](https://www.callmebot.com/blog/free-api-whatsapp-messages/) API.
-Runs unattended on a headless GCP `e2-micro` VM.
+breakdown and email it to their recipients via [Resend](https://resend.com).
+Runs unattended on a headless GCP `e2-micro` VM — no phone dependency.
 
-Message looks like:
+Email looks like:
 
 ```
-alice's Garmin sleep for Wed 03 Sep: 88/100
+Subject: wallace's Garmin sleep score: 88/100
+
+wallace's Garmin sleep for Wed 03 Sep
+
+Score: 88/100
 deep 1h12m, light 4h05m, rem 1h35m, awake 0h18m
 ```
 
 ## Config
 
-Two files, both gitignored, both with committed `.example` templates:
+- **`.env`** (gitignored) – `RESEND_API_KEY` and `EMAIL_FROM` required; `PEOPLE_FILE`,
+  `STATE_FILE`, `TIMEZONE`, `LOG_LEVEL` optional. Template: `.env.example`.
+- **`people.yaml`** (gitignored) – the people → recipients list. Structured, not
+  flat `.env` keys, because the list is dynamic and each person owns a
+  variable-length list of recipients. Template: `people.example.yaml`.
 
-- **`people.yaml`** – the people → recipients list (see `people.example.yaml`).
-  A structured file, not flat `.env` keys, because the list is dynamic and each
-  person owns a variable-length list of `{phone, apikey}` recipients.
-- **`.env`** – optional operational knobs only: `PEOPLE_FILE`, `STATE_FILE`,
-  `TIMEZONE`, `LOG_LEVEL`.
+`EMAIL_FROM` must be on a domain verified in Resend, or use `onboarding@resend.dev`
+(delivers only to your own Resend account email — fine for testing).
 
-Fan-out: many recipients per person, the same phone under many people, and
-receive-only people (a recipient entry with no `people` entry) are all fine.
-It is not pairwise.
+Fan-out: many recipients per person, the same address under many people, and
+receive-only people (a recipient with no `people` entry) are all fine. Not pairwise.
 
 ## One-time setup
 
 ```bash
 uv sync
-cp people.example.yaml people.yaml && $EDITOR people.yaml
-cp .env.example .env                                  # optional
-
-# per recipient phone: WhatsApp "I allow callmebot to send me messages"
-# to +34 644 51 95 23, put the returned key in people.yaml
-
-uv run garmin-auth-setup <name>                       # per person: email + password + MFA
+cp .env.example .env             && $EDITOR .env           # Resend key + from address
+cp people.example.yaml people.yaml && $EDITOR people.yaml   # people + recipient emails
+uv run garmin-auth-setup <name>                             # per person: email + password + MFA
 ```
 
 `garmin-auth-setup` writes `~/.garmin_tokens/<name>/` and the scheduled job
@@ -51,9 +50,9 @@ uv run garmin-sleep-notify --dry-run  # fetch + log, send nothing, write nothing
 ```
 
 Each run: for every person not already fully notified today, fetch the score and
-send to each not-yet-notified recipient. Score not synced yet → logged and
-retried next run. Fully notified → skipped for the rest of the day. State lives
-in `state/sent_state.json`, keyed by date, so it resets each day. One person's
+email each not-yet-notified recipient. Score not synced yet → logged and retried
+next run. Fully notified → skipped for the rest of the day. State lives in
+`state/sent_state.json`, keyed by date, so it resets each day. One person's
 failure never blocks the others. Exit: `0` ok, `1` a fetch/send failed, `2`
 config error.
 
@@ -65,9 +64,10 @@ zone `us-west1-b`, `e2-micro`, Ubuntu 24.04.
 ```bash
 gcloud compute ssh garmin-sleep-notifications-vm --zone us-west1-b
 curl -LsSf https://astral.sh/uv/install.sh | sh && exec $SHELL
-sudo timedatectl set-timezone <Area/City>
+sudo timedatectl set-timezone Europe/London
 git clone <repo-url> ~/garmin-sleep-score-notification
 cd ~/garmin-sleep-score-notification && uv sync
+cp .env.example .env && $EDITOR .env
 cp people.example.yaml people.yaml && $EDITOR people.yaml
 uv run garmin-auth-setup <name>          # per person
 uv run garmin-sleep-notify --dry-run     # check
@@ -97,10 +97,11 @@ Ship changes: `git pull && uv sync` on the VM.
 ```bash
 uv run pytest                          # 1. offline unit suite
 
-cp people.example.yaml people.yaml     # 2. one person = you, one recipient = your phone
+cp .env.example .env                   # 2. real Resend key; EMAIL_FROM + one recipient = your email
+cp people.example.yaml people.yaml     #    one person = you
 uv run garmin-auth-setup <you>         # 3. real token store
 uv run garmin-sleep-notify --dry-run   # 4. real fetch, nothing sent
-uv run garmin-sleep-notify             # 5. real send to yourself
+uv run garmin-sleep-notify             # 5. real email to yourself
 uv run garmin-sleep-notify             # 6. run again -> "already sent today"
 cat state/sent_state.json
 ```
@@ -110,7 +111,7 @@ cat state/sent_state.json
 ```
 config.py    people.yaml + .env  -> Config / Person / Recipient
 garmin.py    GarminFetcher, SleepSummary (score + stages)
-whatsapp.py  WhatsAppSender (CallMeBot)
+mailer.py    EmailSender (Resend)
 state.py     SentState (sent-today JSON tracker)
 notify.py    Notifier + garmin-sleep-notify CLI
 auth_setup.py  AuthSetup + garmin-auth-setup CLI

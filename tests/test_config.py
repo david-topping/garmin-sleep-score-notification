@@ -16,25 +16,22 @@ def test_loads_people_and_fan_out(tmp_path):
         tmp_path,
         """
         people:
-          - name: alice
-            token_store: ~/.garmin_tokens/alice
+          - name: wallace
+            token_store: ~/.garmin_tokens/wallace
             recipients:
-              - phone: "+1"
-                apikey: a1
-              - phone: "+2"
-                apikey: a2
-                label: Bob
-          - name: bob
-            token_store: ~/.garmin_tokens/bob
+              - email: wallace@westwallaby.co.uk
+              - email: gromit@westwallaby.co.uk
+                label: Gromit
+          - name: gromit
+            token_store: ~/.garmin_tokens/gromit
             recipients:
-              - phone: "+2"
-                apikey: a2
+              - email: gromit@westwallaby.co.uk
         """,
     )
     config = Config.load(path)
-    assert [p.name for p in config.people] == ["alice", "bob"]
-    assert config.people[0].recipients[1].name == "Bob"
-    assert config.people[1].recipients[0].phone == "+2"
+    assert [p.name for p in config.people] == ["wallace", "gromit"]
+    assert config.people[0].recipients[1].name == "Gromit"
+    assert config.people[1].recipients[0].email == "gromit@westwallaby.co.uk"
 
 
 def test_missing_file(tmp_path):
@@ -47,8 +44,8 @@ def test_no_recipients(tmp_path):
         tmp_path,
         """
         people:
-          - name: alice
-            token_store: /t/a
+          - name: wallace
+            token_store: /t/w
             recipients: []
         """,
     )
@@ -57,6 +54,6 @@ def test_no_recipients(tmp_path):
 
 
 def test_malformed(tmp_path):
-    path = write(tmp_path, "people:\n  - name: alice\n")
+    path = write(tmp_path, "people:\n  - name: wallace\n")
     with pytest.raises(ConfigError):
         Config.load(path)

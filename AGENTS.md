@@ -3,9 +3,8 @@
 ## Purpose
 
 Each morning, fetch every configured person's Garmin Connect sleep score + stage
-breakdown (deep / light / rem / awake) and push it to their WhatsApp recipients
-via the CallMeBot HTTP API. Runs unattended on a headless GCP VM with no phone
-dependency after one-time setup.
+breakdown (deep / light / rem / awake) and email it to their recipients via the
+Resend API. Runs unattended on a headless GCP VM with no phone dependency.
 
 ## Architecture
 
@@ -16,8 +15,8 @@ in `tests/`:
 | -------------- | ------------------------------- | -------------- |
 | `config.py`    | `Config`, `Person`, `Recipient` | Load `people.yaml` + `.env` into frozen dataclasses. `Config.load()`. |
 | `garmin.py`    | `GarminFetcher`, `SleepSummary` | Token-only login + fetch. `SleepSummary.from_payload()` returns `None` when the score isn't synced yet; raises `GarminError` on auth/network failure. |
-| `whatsapp.py`  | `WhatsAppSender`                | One CallMeBot send; raises `WhatsAppError`. |
-| `state.py`     | `SentState`                     | JSON file: per date + person, the score and which recipient phones were notified. Prunes entries older than 7 days on `save()`. |
+| `mailer.py`    | `EmailSender`                   | One Resend API send; raises `EmailError`. |
+| `state.py`     | `SentState`                     | JSON file: per date + person, the score and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
 | `notify.py`    | `Notifier`                      | Orchestration + `garmin-sleep-notify` CLI (`--dry-run`, `--people-file`). |
 | `auth_setup.py`| `AuthSetup`                     | Interactive one-time login + token dump (`garmin-auth-setup <name>`). |
 | `__init__.py`  | —                               | `configure_logging()` only. |
@@ -30,10 +29,10 @@ cleverness. Keep it that way.
 ## Fan-out model
 
 `people.yaml` is a flat list of **people** (someone whose score is fetched). Each
-owns a list of **recipients** (`phone` + `apikey`, optional `label`). Any fan-out
-is valid: many recipients per person, the same phone under many people, and
-receive-only participants (a recipient with no `people` entry). Not pairwise —
-do not reintroduce an "A notifies B, B notifies A" assumption.
+owns a list of **recipients** (`email`, optional `label`). Any fan-out is valid:
+many recipients per person, the same address under many people, and receive-only
+participants (a recipient with no `people` entry). Not pairwise — do not
+reintroduce an "A notifies B, B notifies A" assumption.
 
 ## Scheduling
 
@@ -48,17 +47,17 @@ is logged and retried next run. "Already sent today" state is `state/sent_state.
 
 ## No phone dependency
 
-After `garmin-auth-setup` per person and each recipient's one-time CallMeBot
-opt-in, nothing running needs a phone, QR scan, or live WhatsApp session. Do not
-add a dependency that reintroduces one (`whatsapp-web.js`, paired-device
-libraries, etc.). Garmin tokens auto-refresh ~1 year.
+Delivery is email via Resend (HTTP API + key). After `garmin-auth-setup` per
+person, nothing running needs a phone, QR scan, or messaging session. Do not
+reintroduce one (WhatsApp Web libraries, paired-device SDKs, etc.). Garmin tokens
+auto-refresh ~1 year.
 
 ## Secrets / config
 
 | File | Committed | Purpose |
 | --- | --- | --- |
-| `.env` / `.env.example` | no / yes | Paths, timezone, log level |
-| `people.yaml` / `people.example.yaml` | no / yes | People → recipients + CallMeBot keys |
+| `.env` / `.env.example` | no / yes | `RESEND_API_KEY`, `EMAIL_FROM`, paths, timezone, log level |
+| `people.yaml` / `people.example.yaml` | no / yes | People → recipient emails |
 | `~/.garmin_tokens/<name>/` | no | Per-person Garmin token store |
 | `state/sent_state.json` | no | Runtime sent-today tracker |
 

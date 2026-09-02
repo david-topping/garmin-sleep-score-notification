@@ -1,22 +1,20 @@
 # Copy to people.yaml (gitignored) and fill in.
 #
-# people   = whoever's Garmin sleep score is fetched (needs a token store via auth-setup)
-# recipients = the WhatsApp numbers notified with that person's score (phone + CallMeBot apikey)
+# people     = whoever's Garmin sleep score is fetched (needs a token store via auth-setup)
+# recipients = the email addresses notified with that person's score
 #
-# Fan-out is free: many recipients per person, the same phone under many people,
+# Fan-out is free: many recipients per person, the same address under many people,
 # receive-only people are just a recipient with no people entry of their own.
-#
-# CallMeBot apikey: from the recipient's phone, WhatsApp "I allow callmebot to send
-# me messages" to +34 644 51 95 23; the reply contains the key.
 
 people:
-  - name: alice
-    token_store: ~/.garmin_tokens/alice
+  - name: wallace
+    token_store: ~/.garmin_tokens/wallace
     recipients:
-      - { label: Alice, phone: "+15550000001", apikey: "111111" }
-      - { label: Bob, phone: "+15550000002", apikey: "222222" }
+      - { label: Wallace, email: wallace@westwallaby.co.uk }
+      - { label: Gromit, email: gromit@westwallaby.co.uk }
 
-  - name: bob
-    token_store: ~/.garmin_tokens/bob
+  - name: gromit
+    token_store: ~/.garmin_tokens/gromit
     recipients:
-      - { label: Bob, phone: "+15550000002", apikey: "222222" }
+      - { label: Gromit, email: gromit@westwallaby.co.uk }
+      - { label: Feathers McGraw, email: feathers@penguin.co.uk }
