@@ -69,9 +69,9 @@ class SleepEmail:
             'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sleep stage breakdown">'
             f'{"".join(sectors)}'
             f'<text x="60" y="58" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" '
-            f'font-size="15" font-weight="bold" fill="#1f2430">{total}</text>'
+            f'font-size="15" font-weight="bold" fill="#2b303b">{total}</text>'
             '<text x="60" y="71" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" '
-            'font-size="7" letter-spacing="0.5" fill="#9099a5">TOTAL SLEEP</text>'
+            'font-size="7" letter-spacing="0.5" fill="#7b8394">TOTAL SLEEP</text>'
             "</svg>"
         )
 
@@ -83,32 +83,42 @@ class SleepEmail:
             f'<tr>'
             f'<td style="padding:6px 0;width:16px;"><span style="display:inline-block;width:10px;'
             f'height:10px;border-radius:3px;background:{st.colour};"></span></td>'
-            f'<td style="padding:6px 10px;color:#3d4350;">{st.label}</td>'
-            f'<td style="padding:6px 0;text-align:right;color:#1f2430;font-weight:600;">'
+            f'<td style="padding:6px 10px;color:#4a5160;">{st.label}</td>'
+            f'<td style="padding:6px 0;text-align:right;color:#2b303b;font-weight:600;">'
             f'{SleepSummary.hm(st.duration)}</td>'
-            f'<td style="padding:6px 0 6px 14px;text-align:right;color:#9099a5;width:46px;">'
+            f'<td style="padding:6px 0 6px 14px;text-align:right;color:#7b8394;width:46px;">'
             f'{str(st.percent) + "%" if st.label != "Awake" else "&mdash;"}</td>'
             f'</tr>'
             for st in s.breakdown()
         )
         return f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;color-scheme:light only;">
 <div style="margin:0;padding:24px 12px;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;margin:0 auto;">
-    <tr><td style="background:#ffffff;border-radius:14px;padding:28px 28px 22px;">
-      <div style="font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#9099a5;font-weight:700;">Sleep Score</div>
-      <div style="font-size:15px;color:#3d4350;margin-top:5px;">{escape(self.person)} &middot; {self.day:%a %d %b}</div>
+    <tr><td style="background:#ffffff;border:1px solid #e6e9ee;border-radius:14px;padding:28px 28px 22px;">
+      <div style="font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#7b8394;font-weight:700;">Sleep Score</div>
+      <div style="font-size:15px;color:#4a5160;margin-top:5px;">{escape(self.person)} &middot; {self.day:%a %d %b}</div>
       <div style="margin:14px 0 2px;">
-        <span style="font-size:52px;font-weight:700;color:#1f2430;line-height:1;">{s.score}</span>
-        <span style="font-size:19px;color:#9099a5;font-weight:600;">/ 100</span>
+        <span style="font-size:52px;font-weight:700;color:{qcolour};line-height:1;">{s.score}</span>
+        <span style="font-size:19px;color:#7b8394;font-weight:600;">/ 100</span>
         <span style="font-size:16px;font-weight:700;color:{qcolour};margin-left:8px;">{s.qualifier}</span>
       </div>
       <div style="text-align:center;margin:14px 0 4px;">{self._donut_svg()}</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:8px;">
         {rows}
-        <tr><td colspan="2" style="padding:9px 0 0;border-top:1px solid #edeff2;color:#3d4350;font-weight:600;">Total sleep</td>
-        <td colspan="2" style="padding:9px 0 0;border-top:1px solid #edeff2;text-align:right;color:#1f2430;font-weight:700;">{SleepSummary.hm(s.asleep)}</td></tr>
+        <tr><td colspan="2" style="padding:9px 0 0;border-top:1px solid #e6e9ee;color:#4a5160;font-weight:600;">Total sleep</td>
+        <td colspan="2" style="padding:9px 0 0;border-top:1px solid #e6e9ee;text-align:right;color:#2b303b;font-weight:700;">{SleepSummary.hm(s.asleep)}</td></tr>
       </table>
     </td></tr>
-    <tr><td style="padding:14px 8px;text-align:center;font-size:11px;color:#b3b8c0;">Garmin Connect &middot; garmin-sleep-notify</td></tr>
+    <tr><td style="padding:14px 8px;text-align:center;font-size:11px;color:#9aa0ac;">Garmin Connect &middot; garmin-sleep-notify</td></tr>
   </table>
-</div>"""
+</div>
+</body>
+</html>"""

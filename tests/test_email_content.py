@@ -22,10 +22,14 @@ def test_text_has_score_and_stages():
 
 def test_html_has_no_external_resources():
     html = EMAIL.html
-    assert html.startswith("<div")
+    assert html.startswith("<!DOCTYPE html>")
     assert "<img" not in html and "src=" not in html and "url(" not in html
     assert "https://" not in html  # xmlns is http://www.w3.org/..., not a fetched resource
     assert "Wallace" in html and "88" in html and "Good" in html and "REM" in html
+
+
+def test_html_forces_light_scheme():
+    assert 'name="color-scheme" content="light only"' in EMAIL.html
 
 
 def test_html_has_inline_svg_donut_and_total():
