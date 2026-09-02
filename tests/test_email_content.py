@@ -20,21 +20,19 @@ def test_text_has_score_and_stages():
     assert "Deep" in EMAIL.text and "1h 00m" in EMAIL.text
 
 
-def test_html_is_self_contained():
+def test_html_references_inline_chart_and_total():
     html = EMAIL.html
-    assert html.startswith("<div")
-    assert "http://" not in html and "https://" not in html
+    assert f'src="cid:{SleepEmail.CHART_CID}"' in html
+    assert "Total sleep" in html and "6h 00m" in html
     assert "Wallace" in html and "88" in html and "Good" in html and "REM" in html
 
 
-def test_html_has_ring_and_total_sleep():
-    html = EMAIL.html
-    assert "conic-gradient(" in html
-    assert "Total sleep" in html and "6h 00m" in html
-
-
-def test_ring_gradient_is_cumulative_and_full():
-    # deep 1h, light 4h, rem 1h -> asleep 6h -> 16.7 / 66.7 / 16.7, ending at 100
-    gradient = EMAIL._ring_gradient()
-    assert gradient.startswith("#")
-    assert gradient.strip().endswith("100.0%")
+def test_chart_url_is_quickchart_doughnut():
+    url = EMAIL.chart_url
+    assert url.startswith("https://quickchart.io/chart?")
+    assert "doughnut" in url
+    # minutes for deep, light, rem (awake excluded)
+    assert "60%2C240%2C60" in url
+    # centre label is total sleep, per-segment value labels are off
+    assert "6h%2000m" in url
+    assert "datalabels%3A%7Bdisplay%3Afalse%7D" in url
