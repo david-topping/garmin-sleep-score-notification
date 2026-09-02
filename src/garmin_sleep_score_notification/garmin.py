@@ -89,13 +89,13 @@ class GarminFetcher:
 
     def fetch(self, day: date) -> SleepSummary | None:
         if not self.token_store.exists():
-            raise GarminError(f"no token store at {self.token_store} - run auth-setup")
+            raise GarminError(f"no token store at {self.token_store}: run auth-setup")
         client = Garmin()
         try:
             client.login(tokenstore=str(self.token_store))
             payload = client.get_sleep_data(day.isoformat())
         except GarminConnectAuthenticationError as exc:
-            raise GarminError(f"auth failed ({exc}) - re-run auth-setup") from exc
+            raise GarminError(f"auth failed ({exc}): re-run auth-setup") from exc
         except Exception as exc:
             raise GarminError(f"fetch failed: {exc}") from exc
         return SleepSummary.from_payload(payload)

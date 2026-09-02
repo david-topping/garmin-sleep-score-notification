@@ -58,7 +58,7 @@ class Config:
             people_file or os.getenv("PEOPLE_FILE") or PROJECT_ROOT / "people.yaml"
         ).expanduser()
         if not path.exists():
-            raise ConfigError(f"{path} not found - copy people.example.yaml to people.yaml")
+            raise ConfigError(f"{path} not found. Copy people.example.yaml to people.yaml")
 
         try:
             people = tuple(Person.from_dict(p) for p in yaml.safe_load(path.read_text())["people"])

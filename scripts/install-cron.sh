@@ -30,7 +30,7 @@ fi
 
 UV="$(command -v uv || true)"
 if [[ -z "$UV" ]]; then
-  echo "uv not found on PATH - install it first" >&2
+  echo "uv not found on PATH: install it first" >&2
   exit 1
 fi
 

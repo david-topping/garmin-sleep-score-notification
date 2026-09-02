@@ -36,7 +36,7 @@ class AuthSetup:
         self.token_store.mkdir(parents=True, exist_ok=True)
         garmin.client.dump(str(self.token_store))
         Garmin().login(tokenstore=str(self.token_store))
-        print(f"OK - tokens written to {self.token_store}")
+        print(f"OK: tokens written to {self.token_store}")
 
     @staticmethod
     def _mfa() -> str:

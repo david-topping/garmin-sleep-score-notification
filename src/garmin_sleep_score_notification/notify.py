@@ -47,7 +47,7 @@ class Notifier:
                 continue
             email = SleepEmail(person.name, day, summary)
             recipients = ", ".join(r.name for r in person.recipients)
-            log.info("%s: would email [%s] - %s", person.name, recipients, email.subject)
+            log.info("%s: would email [%s]: %s", person.name, recipients, email.subject)
         return 0
 
     def _process(self, person: Person, day: date) -> None:
