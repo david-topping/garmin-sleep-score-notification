@@ -5,8 +5,6 @@ import logging
 import sys
 from datetime import date, datetime
 
-import requests
-
 from . import configure_logging
 from .config import Config, ConfigError, Person
 from .email_content import SleepEmail
@@ -15,16 +13,6 @@ from .mailer import EmailError, EmailSender
 from .state import SentState
 
 log = logging.getLogger("garmin_sleep")
-
-
-def fetch_chart(url: str) -> bytes | None:
-    try:
-        resp = requests.get(url, timeout=20)
-        resp.raise_for_status()
-        return resp.content
-    except requests.RequestException as exc:
-        log.warning("chart render failed (%s), sending without it", exc)
-        return None
 
 
 class Notifier:
@@ -81,14 +69,12 @@ class Notifier:
 
         email = SleepEmail(person.name, day, summary)
         record = summary.as_record()
-        png = fetch_chart(email.chart_url)
-        inline = (SleepEmail.CHART_CID, png) if png else None
         already = self.state.sent_recipients(person.name, day)
         for recipient in person.recipients:
             if recipient.email in already:
                 continue
             try:
-                self.sender.send(recipient.email, email.subject, email.text, email.html, inline)
+                self.sender.send(recipient.email, email.subject, email.text, email.html)
             except EmailError as exc:
                 log.error("%s -> %s: send failed (%s), will retry", person.name, recipient.name, exc)
                 self.failures += 1

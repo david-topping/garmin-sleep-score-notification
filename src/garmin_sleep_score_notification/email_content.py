@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import math
 from datetime import date
 from html import escape
-from urllib.parse import quote
 
 from .garmin import SleepSummary
 
@@ -15,8 +15,6 @@ _QUALIFIER_COLOUR = {
 
 
 class SleepEmail:
-    CHART_CID = "sleepring"
-
     def __init__(self, person: str, day: date, summary: SleepSummary) -> None:
         self.person = person.title()
         self.day = day
@@ -39,33 +37,48 @@ class SleepEmail:
         lines += [f"  {st.label:<6} {SleepSummary.hm(st.duration):>7}" for st in s.breakdown()]
         return "\n".join(lines) + "\n"
 
-    @property
-    def chart_url(self) -> str:
-        stages = [st for st in self.summary.breakdown() if st.label != "Awake"]
-        data = ",".join(str(round(st.duration.total_seconds() / 60)) for st in stages)
-        colours = ",".join(f"'{st.colour}'" for st in stages)
-        labels = ",".join(f"'{st.label}'" for st in stages)
-        centre = SleepSummary.hm(self.summary.asleep)
-        config = (
-            "{type:'doughnut',"
-            f"data:{{labels:[{labels}],datasets:[{{data:[{data}],"
-            f"backgroundColor:[{colours}],borderWidth:0}}]}},"
-            "options:{cutoutPercentage:70,legend:{display:false},"
-            "plugins:{datalabels:{display:false},doughnutlabel:{labels:["
-            f"{{text:'{centre}',font:{{size:26,weight:'bold'}},color:'#1f2430'}},"
-            "{text:'total sleep',font:{size:12},color:'#9099a5'}]}}}}"
+    @staticmethod
+    def _point(radius: float, angle: float) -> str:
+        a = math.radians(angle - 90)
+        return f"{60 + radius * math.cos(a):.2f} {60 + radius * math.sin(a):.2f}"
+
+    def _sector(self, colour: str, start: float, end: float) -> str:
+        outer, inner = 52.0, 34.0
+        large = 1 if end - start > 180 else 0
+        d = (
+            f"M {self._point(outer, start)} "
+            f"A {outer} {outer} 0 {large} 1 {self._point(outer, end)} "
+            f"L {self._point(inner, end)} "
+            f"A {inner} {inner} 0 {large} 0 {self._point(inner, start)} Z"
         )
-        return "https://quickchart.io/chart?w=260&h=260&bkg=transparent&c=" + quote(config)
+        return f'<path d="{d}" fill="{colour}" stroke="#ffffff" stroke-width="1.5"/>'
+
+    def _donut_svg(self) -> str:
+        stages = [st for st in self.summary.breakdown() if st.label != "Awake"]
+        asleep = self.summary.asleep.total_seconds()
+        sectors, angle = [], 0.0
+        for st in stages:
+            frac = st.duration.total_seconds() / asleep if asleep else 0.0
+            sweep = min(frac * 360, 359.99)
+            if sweep > 0.5:
+                sectors.append(self._sector(st.colour, angle, angle + sweep))
+            angle += frac * 360
+        total = SleepSummary.hm(self.summary.asleep)
+        return (
+            '<svg width="180" height="180" viewBox="0 0 120 120" '
+            'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sleep stage breakdown">'
+            f'{"".join(sectors)}'
+            f'<text x="60" y="58" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" '
+            f'font-size="15" font-weight="bold" fill="#1f2430">{total}</text>'
+            '<text x="60" y="71" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" '
+            'font-size="7" letter-spacing="0.5" fill="#9099a5">TOTAL SLEEP</text>'
+            "</svg>"
+        )
 
     @property
     def html(self) -> str:
         s = self.summary
         qcolour = _QUALIFIER_COLOUR.get(s.qualifier, "#3d4350")
-        alt = ", ".join(
-            f"{st.label} {SleepSummary.hm(st.duration)}"
-            for st in s.breakdown()
-            if st.label != "Awake"
-        )
         rows = "".join(
             f'<tr>'
             f'<td style="padding:6px 0;width:16px;"><span style="display:inline-block;width:10px;'
@@ -89,9 +102,7 @@ class SleepEmail:
         <span style="font-size:19px;color:#9099a5;font-weight:600;">/ 100</span>
         <span style="font-size:16px;font-weight:700;color:{qcolour};margin-left:8px;">{s.qualifier}</span>
       </div>
-      <div style="text-align:center;margin:16px 0 6px;">
-        <img src="cid:{self.CHART_CID}" width="200" height="200" alt="{alt}" style="display:block;margin:0 auto;border:0;">
-      </div>
+      <div style="text-align:center;margin:14px 0 4px;">{self._donut_svg()}</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:8px;">
         {rows}
         <tr><td colspan="2" style="padding:9px 0 0;border-top:1px solid #edeff2;color:#3d4350;font-weight:600;">Total sleep</td>

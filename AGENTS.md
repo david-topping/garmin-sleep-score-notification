@@ -15,10 +15,10 @@ unit-tested in `tests/`:
 | -------------- | ------------------------------- | -------------- |
 | `config.py`    | `Config`, `Person`, `Recipient` | Load `people.yaml` and `.env` into frozen dataclasses. `Config.load()`. |
 | `garmin.py`    | `GarminFetcher`, `SleepSummary` | Token-only login and fetch. `SleepSummary` carries score, qualifier and stage breakdown; `from_payload()` returns `None` when not synced yet; raises `GarminError` on auth/network failure. |
-| `email_content.py` | `SleepEmail`               | Renders `subject`, `text`, `html` (inline-styled card), and `chart_url` (a QuickChart doughnut of the sleep stages) from a `SleepSummary`. |
+| `email_content.py` | `SleepEmail`               | Renders `subject`, `text`, and `html` from a `SleepSummary`. The card is self-contained (no images, no external requests): stage split is an inline `<svg>` donut, with a legend that carries the same figures for clients that strip SVG (Gmail). |
 | `mailer.py`    | `EmailSender`                   | One Resend API send (`text` plus `html`); raises `EmailError`. |
 | `state.py`     | `SentState`                     | JSON file: per date and person, `score`, `stages_min`, and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
-| `notify.py`    | `Notifier`, `fetch_chart`       | Orchestration plus the `garmin-sleep-notify` CLI (`--dry-run`, `--people-file`). Fetches the chart PNG once per person and passes it to `EmailSender` as an inline `cid:` attachment (so it renders in Gmail); a failed fetch just sends the email without it. |
+| `notify.py`    | `Notifier`                      | Orchestration plus the `garmin-sleep-notify` CLI (`--dry-run`, `--people-file`). |
 | `auth_setup.py`| `AuthSetup`                     | Interactive one-time login and token dump (`garmin-auth-setup <name>`). |
 | `__init__.py`  | (none)                          | `configure_logging()` only. |
 

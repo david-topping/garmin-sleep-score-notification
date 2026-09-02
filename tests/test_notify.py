@@ -1,8 +1,6 @@
 from datetime import timedelta
 from pathlib import Path
 
-import pytest
-
 from garmin_sleep_score_notification import notify
 from garmin_sleep_score_notification.config import Config, Person, Recipient
 from garmin_sleep_score_notification.garmin import GarminError, SleepSummary
@@ -10,11 +8,6 @@ from garmin_sleep_score_notification.mailer import EmailError
 
 WALLACE = "wallace@westwallaby.co.uk"
 GROMIT = "gromit@westwallaby.co.uk"
-
-
-@pytest.fixture(autouse=True)
-def _stub_chart(monkeypatch):
-    monkeypatch.setattr(notify, "fetch_chart", lambda url: b"PNG")
 
 
 def summary(score=82):
@@ -39,12 +32,10 @@ def config(tmp_path, *people):
 class FakeSender:
     def __init__(self, fail=()):
         self.sent = []
-        self.inline = []
         self.fail = set(fail)
 
-    def send(self, to, subject, text, html, inline=None):
+    def send(self, to, subject, text, html):
         self.sent.append(to)
-        self.inline.append(inline)
         if to in self.fail:
             self.fail.discard(to)
             raise EmailError("temporary")
@@ -68,7 +59,6 @@ def test_fans_out_and_records(tmp_path, monkeypatch):
 
     assert notify.Notifier(cfg, sender).run() == 0
     assert sorted(sender.sent) == sorted([WALLACE, GROMIT])
-    assert sender.inline[0] == ("sleepring", b"PNG")
 
     sender2 = FakeSender()
     assert notify.Notifier(cfg, sender2).run() == 0

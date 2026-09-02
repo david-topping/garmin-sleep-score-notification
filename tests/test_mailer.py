@@ -33,28 +33,6 @@ def test_send_ok(monkeypatch):
     }
 
 
-def test_inline_image_becomes_attachment(monkeypatch):
-    seen = {}
-    monkeypatch.setattr(
-        mailer.requests,
-        "post",
-        lambda url, headers, json, timeout: seen.update(json=json) or FakeResp(),
-    )
-    EmailSender("re_key", "s@x.co.uk").send(
-        "g@x.co.uk", "subj", "t", "<p>h</p>", ("sleepring", b"\x89PNG")
-    )
-    att = seen["json"]["attachments"][0]
-    assert att["content_id"] == "sleepring"
-    assert att["filename"] == "sleepring.png"
-    assert base64_ok(att["content"], b"\x89PNG")
-
-
-def base64_ok(encoded, raw):
-    import base64
-
-    return base64.b64decode(encoded) == raw
-
-
 def test_missing_api_key(monkeypatch):
     monkeypatch.setattr(mailer.requests, "post", lambda **_: FakeResp())
     with pytest.raises(EmailError):
