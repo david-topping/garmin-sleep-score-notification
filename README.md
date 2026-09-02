@@ -1,116 +1,64 @@
-# garmin-sleep-score-notification
+# Garmin Sleep Score Notification
 
-Every morning, fetch each configured person's Garmin Connect sleep score + stage
-breakdown and email it to their recipients via [Resend](https://resend.com).
-Runs unattended on a headless GCP `e2-micro` VM — no phone dependency.
+Fetches each configured person's Garmin Connect sleep score every morning and
+emails it (score, qualifier, deep/light/REM/awake breakdown) to their recipients
+via [Resend](https://resend.com). Runs unattended on a headless GCP `e2-micro`
+VM via cron — no phone or browser session after one-time setup.
 
-Each email is a small HTML card — score, qualifier, a stacked deep/light/REM bar,
-and per-stage durations — with a plain-text fallback. Subject:
-`Wallace's Sleep Score 88/100 03/09/26`.
+## Design
 
-## Config
+- **Token auth** — `garmin-auth-setup` does an interactive login once per person
+  and caches an OAuth token (`garth`) that auto-refreshes for ~1 year. The
+  scheduled job never re-authenticates.
+- **Retry until sent** — cron runs every 10 min, 04:30–13:00. Each run emails
+  anyone whose score is available and not yet sent today; if the watch hasn't
+  synced, it logs and retries next run. State (`state/sent_state.json`, keyed by
+  date) makes it exactly-once per person per day and resets automatically.
+- **Fan-out config** — `people.yaml` maps people → recipient lists. Arbitrary
+  fan-out (one score to many, one address across many people, receive-only
+  people). Adding a person or recipient is config, not code.
+- **Isolation** — one person's auth or send failure never blocks the others.
+  Exit codes: `0` ok, `1` a fetch/send failed, `2` config error.
 
-- **`.env`** (gitignored) – `RESEND_API_KEY` and `EMAIL_FROM` required; `PEOPLE_FILE`,
-  `STATE_FILE`, `TIMEZONE`, `LOG_LEVEL` optional. Template: `.env.example`.
-- **`people.yaml`** (gitignored) – the people → recipients list. Structured, not
-  flat `.env` keys, because the list is dynamic and each person owns a
-  variable-length list of recipients. Template: `people.example.yaml`.
+## Architecture
 
-`EMAIL_FROM` must be on a domain verified in Resend, or use `onboarding@resend.dev`
-(delivers only to your own Resend account email — fine for testing).
+| Module | Responsibility |
+|---|---|
+| `config.py` | Load `.env` + `people.yaml` → `Config` / `Person` / `Recipient` |
+| `garmin.py` | `GarminFetcher`, `SleepSummary` (score, qualifier, stage breakdown) |
+| `email_content.py` | `SleepEmail` — subject / plain-text / HTML |
+| `mailer.py` | `EmailSender` — Resend API |
+| `state.py` | `SentState` — sent-today tracker, 7-day pruning |
+| `notify.py` | `Notifier` — orchestration + `garmin-sleep-notify` CLI |
+| `auth_setup.py` | `AuthSetup` — `garmin-auth-setup` CLI |
 
-Fan-out: many recipients per person, the same address under many people, and
-receive-only people (a recipient with no `people` entry) are all fine. Not pairwise.
+Each module is independently unit-tested (`uv run pytest`). uv-managed
+throughout; no pip or manual venv.
 
-## One-time setup
+## Setup
 
 ```bash
 uv sync
-cp .env.example .env             && $EDITOR .env           # Resend key + from address
-cp people.example.yaml people.yaml && $EDITOR people.yaml   # people + recipient emails
-uv run garmin-auth-setup <name>                             # per person: email + password + MFA
+cp .env.example .env                # RESEND_API_KEY, EMAIL_FROM (verified Resend domain)
+cp people.example.yaml people.yaml  # people + recipient emails
+uv run garmin-auth-setup <name>     # once per person — email, password, MFA
 ```
 
-`garmin-auth-setup` writes `~/.garmin_tokens/<name>/` and the scheduled job
-reuses it (auto-refreshes ~1 year). Re-run only if that person starts failing
-with an auth error.
-
-## Running
+## Run
 
 ```bash
-uv run garmin-sleep-notify            # the real job
-uv run garmin-sleep-notify --dry-run  # fetch + log, send nothing, write nothing
+uv run garmin-sleep-notify            # the job
+uv run garmin-sleep-notify --dry-run  # fetch + log, send nothing
 ```
 
-Each run: for every person not already fully notified today, fetch the score and
-email each not-yet-notified recipient. Score not synced yet → logged and retried
-next run. Fully notified → skipped for the rest of the day. State lives in
-`state/sent_state.json`, keyed by date, so it resets each day. One person's
-failure never blocks the others. Exit: `0` ok, `1` a fetch/send failed, `2`
-config error.
-
-## Deploy to the VM
-
-Project `garmin-sleep-score-to-whatsapp`, instance `garmin-sleep-notifications-vm`,
-zone `us-west1-b`, `e2-micro`, Ubuntu 24.04.
+## Deploy
 
 ```bash
-gcloud compute ssh garmin-sleep-notifications-vm --zone us-west1-b
-curl -LsSf https://astral.sh/uv/install.sh | sh && exec $SHELL
-sudo timedatectl set-timezone Europe/London
-git clone <repo-url> ~/garmin-sleep-score-notification
-cd ~/garmin-sleep-score-notification && uv sync
-cp .env.example .env && $EDITOR .env
-cp people.example.yaml people.yaml && $EDITOR people.yaml
-uv run garmin-auth-setup <name>          # per person
-uv run garmin-sleep-notify --dry-run     # check
-./scripts/install-cron.sh                # schedule it
+git clone <repo-url> && cd garmin-sleep-score-notification
+uv sync
+# populate .env + people.yaml, run garmin-auth-setup per person
+./scripts/install-cron.sh             # idempotent; --dry-run / --remove
 ```
 
-### Crontab
-
-```bash
-./scripts/install-cron.sh            # install / update
-./scripts/install-cron.sh --dry-run  # preview, change nothing
-./scripts/install-cron.sh --remove   # uninstall
-```
-
-Idempotent. Runs every 10 min from 04:30 to 13:00 inclusive, logging to
-`~/garmin-sleep.log`. Three entries so the window has clean edges:
-
-```cron
-30,40,50 4    * * * cd ~/garmin-sleep-score-notification && ~/.local/bin/uv run garmin-sleep-notify >> ~/garmin-sleep.log 2>&1
-*/10     5-12 * * * cd ~/garmin-sleep-score-notification && ~/.local/bin/uv run garmin-sleep-notify >> ~/garmin-sleep.log 2>&1
-0        13   * * * cd ~/garmin-sleep-score-notification && ~/.local/bin/uv run garmin-sleep-notify >> ~/garmin-sleep.log 2>&1
-```
-
-Ship changes: `git pull && uv sync` on the VM.
-
-## Test end-to-end locally
-
-```bash
-uv run pytest                          # 1. offline unit suite
-
-cp .env.example .env                   # 2. real Resend key; EMAIL_FROM + one recipient = your email
-cp people.example.yaml people.yaml     #    one person = you
-uv run garmin-auth-setup <you>         # 3. real token store
-uv run garmin-sleep-notify --dry-run   # 4. real fetch, nothing sent
-uv run garmin-sleep-notify             # 5. real email to yourself
-uv run garmin-sleep-notify             # 6. run again -> "already sent today"
-cat state/sent_state.json
-```
-
-## Layout
-
-```
-config.py    people.yaml + .env  -> Config / Person / Recipient
-garmin.py    GarminFetcher, SleepSummary (score + qualifier + stages)
-email_content.py  SleepEmail (subject / text / html)
-mailer.py    EmailSender (Resend)
-state.py     SentState (sent-today JSON tracker; stores score + stage minutes)
-notify.py    Notifier + garmin-sleep-notify CLI
-auth_setup.py  AuthSetup + garmin-auth-setup CLI
-scripts/install-cron.sh   install/remove the VM cron entries
-```
-
-uv only – `uv add`, `uv run`, `uv sync`. No pip, no manual venv.
+Ship changes: `git pull && uv sync`. Cron uses VM local time — set the VM
+timezone accordingly.
