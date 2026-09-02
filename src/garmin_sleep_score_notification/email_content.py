@@ -55,7 +55,7 @@ class SleepEmail:
             f"{{text:'{centre}',font:{{size:26,weight:'bold'}},color:'#1f2430'}},"
             "{text:'total sleep',font:{size:12},color:'#9099a5'}]}}}}"
         )
-        return "https://quickchart.io/chart?w=260&h=260&bkg=white&c=" + quote(config)
+        return "https://quickchart.io/chart?w=260&h=260&bkg=transparent&c=" + quote(config)
 
     @property
     def html(self) -> str:
