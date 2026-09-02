@@ -6,7 +6,7 @@ Runs unattended on a headless GCP `e2-micro` VM — no phone dependency.
 
 Each email is a small HTML card — score, qualifier, a stacked deep/light/REM bar,
 and per-stage durations — with a plain-text fallback. Subject:
-`wallace's sleep score: 88/100 (Good)`.
+`wallace sleep score 88 03/09/26`.
 
 ## Config
 

@@ -10,7 +10,7 @@ EMAIL = SleepEmail("wallace", date(2026, 9, 2), SUMMARY)
 
 
 def test_subject():
-    assert EMAIL.subject == "wallace's sleep score: 88/100 (Good)"
+    assert EMAIL.subject == "wallace sleep score 88 02/09/26"
 
 
 def test_text_has_score_and_stages():

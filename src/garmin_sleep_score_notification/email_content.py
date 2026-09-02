@@ -21,7 +21,7 @@ class SleepEmail:
 
     @property
     def subject(self) -> str:
-        return f"{self.person}'s sleep score: {self.summary.score}/100 ({self.summary.qualifier})"
+        return f"{self.person} sleep score {self.summary.score} {self.day:%d/%m/%y}"
 
     @property
     def text(self) -> str:
