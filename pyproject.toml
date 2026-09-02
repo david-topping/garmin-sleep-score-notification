@@ -1,0 +1,31 @@
+[project]
+name = "garmin-sleep-score-notification"
+version = "0.1.0"
+description = "Fetch Garmin Connect sleep scores each morning and notify WhatsApp recipients via CallMeBot."
+readme = "README.md"
+authors = [
+    { name = "David Topping", email = "topping.david11@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "garminconnect>=0.3.11",
+    "python-dotenv>=1.2.3",
+    "pyyaml>=6.0.3",
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+garmin-auth-setup = "garmin_sleep_score_notification.auth_setup:main"
+garmin-sleep-notify = "garmin_sleep_score_notification.notify:main"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

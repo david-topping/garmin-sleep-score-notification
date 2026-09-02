@@ -1,0 +1,24 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets / local config — the .example versions ARE committed, these are not
+.env
+people.yaml
+people.*.yaml
+!people.example.yaml
+
+# Runtime state (the "already sent today" tracker)
+state/
+*.sent_state.json
+
+# Garmin token stores, if kept inside the repo
+.garmin_tokens/
+
