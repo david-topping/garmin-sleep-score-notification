@@ -37,14 +37,16 @@ reintroduce an "A notifies B, B notifies A" assumption.
 
 ## Scheduling
 
-Cron runs `garmin-sleep-notify` every 30 min, 06:00–13:00 inclusive, VM local
+Cron runs `garmin-sleep-notify` every 10 min, 04:30–13:00 inclusive, VM local
 time. Installed by `scripts/install-cron.sh` (idempotent; `--dry-run` to preview,
-`--remove` to uninstall) as two crontab lines tagged `# garmin-sleep-notify` — a single
-`0,30 6-13` would also fire at 13:30, hence the split into `0,30 6-12` + `0 13`.
+`--remove` to uninstall) as three crontab lines tagged `# garmin-sleep-notify`:
+`30,40,50 4` + `*/10 5-12` + `0 13`, split so the window edges are exact.
 
 Each run processes only people not already fully notified today; score-not-ready
-is logged and retried next run. "Already sent today" state is `state/sent_state.json`
-(override `STATE_FILE`), keyed by ISO date so it resets daily.
+is logged and retried next run. Once every recipient for a person has been
+emailed, that person is skipped for the rest of the day. "Already sent today"
+state is `state/sent_state.json` (override `STATE_FILE`), keyed by ISO date so it
+resets daily.
 
 ## No phone dependency
 

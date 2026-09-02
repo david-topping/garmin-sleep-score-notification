@@ -6,7 +6,7 @@ Runs unattended on a headless GCP `e2-micro` VM — no phone dependency.
 
 Each email is a small HTML card — score, qualifier, a stacked deep/light/REM bar,
 and per-stage durations — with a plain-text fallback. Subject:
-`wallace sleep score 88 03/09/26`.
+`Wallace's Sleep Score 88/100 03/09/26`.
 
 ## Config
 
@@ -75,12 +75,13 @@ uv run garmin-sleep-notify --dry-run     # check
 ./scripts/install-cron.sh --remove   # uninstall
 ```
 
-Idempotent. Installs two entries (every 30 min 06:00–13:00 inclusive; a single
-`0,30 6-13` would also fire at 13:30), logging to `~/garmin-sleep.log`:
+Idempotent. Runs every 10 min from 04:30 to 13:00 inclusive, logging to
+`~/garmin-sleep.log`. Three entries so the window has clean edges:
 
 ```cron
-0,30 6-12 * * * cd ~/garmin-sleep-score-notification && ~/.local/bin/uv run garmin-sleep-notify >> ~/garmin-sleep.log 2>&1
-0    13   * * * cd ~/garmin-sleep-score-notification && ~/.local/bin/uv run garmin-sleep-notify >> ~/garmin-sleep.log 2>&1
+30,40,50 4    * * * cd ~/garmin-sleep-score-notification && ~/.local/bin/uv run garmin-sleep-notify >> ~/garmin-sleep.log 2>&1
+*/10     5-12 * * * cd ~/garmin-sleep-score-notification && ~/.local/bin/uv run garmin-sleep-notify >> ~/garmin-sleep.log 2>&1
+0        13   * * * cd ~/garmin-sleep-score-notification && ~/.local/bin/uv run garmin-sleep-notify >> ~/garmin-sleep.log 2>&1
 ```
 
 Ship changes: `git pull && uv sync` on the VM.

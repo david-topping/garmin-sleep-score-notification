@@ -15,19 +15,19 @@ _QUALIFIER_COLOUR = {
 
 class SleepEmail:
     def __init__(self, person: str, day: date, summary: SleepSummary) -> None:
-        self.person = person
+        self.person = person.title()
         self.day = day
         self.summary = summary
 
     @property
     def subject(self) -> str:
-        return f"{self.person} sleep score {self.summary.score} {self.day:%d/%m/%y}"
+        return f"{self.person}'s Sleep Score {self.summary.score}/100 {self.day:%d/%m/%y}"
 
     @property
     def text(self) -> str:
         s = self.summary
         lines = [
-            f"{self.person} - Garmin sleep for {self.day:%A %d %B}",
+            f"{self.person}'s Garmin sleep for {self.day:%A %d %B}",
             "",
             f"Score: {s.score}/100 ({s.qualifier})",
             f"Asleep: {SleepSummary.hm(s.asleep)}",
@@ -61,7 +61,7 @@ class SleepEmail:
 <div style="margin:0;padding:24px 12px;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;margin:0 auto;">
     <tr><td style="background:#ffffff;border-radius:14px;padding:28px 28px 20px;">
-      <div style="font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#9099a5;font-weight:700;">Sleep score</div>
+      <div style="font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#9099a5;font-weight:700;">Sleep Score</div>
       <div style="font-size:15px;color:#3d4350;margin-top:5px;">{escape(self.person)} &middot; {self.day:%a %d %b}</div>
       <div style="margin:16px 0 2px;">
         <span style="font-size:54px;font-weight:700;color:#1f2430;line-height:1;">{s.score}</span>

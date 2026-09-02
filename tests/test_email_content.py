@@ -10,10 +10,11 @@ EMAIL = SleepEmail("wallace", date(2026, 9, 2), SUMMARY)
 
 
 def test_subject():
-    assert EMAIL.subject == "wallace sleep score 88 02/09/26"
+    assert EMAIL.subject == "Wallace's Sleep Score 88/100 02/09/26"
 
 
 def test_text_has_score_and_stages():
+    assert "Wallace's Garmin sleep" in EMAIL.text
     assert "Score: 88/100 (Good)" in EMAIL.text
     assert "Deep" in EMAIL.text and "1h 00m" in EMAIL.text
 
@@ -22,4 +23,4 @@ def test_html_is_self_contained():
     html = EMAIL.html
     assert html.startswith("<div")
     assert "http://" not in html and "https://" not in html
-    assert "88" in html and "Good" in html and "REM" in html
+    assert "Wallace" in html and "88" in html and "Good" in html and "REM" in html
