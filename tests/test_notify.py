@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from garmin_sleep_score_notification import notify
@@ -11,8 +11,8 @@ GROMIT = "gromit@westwallaby.co.uk"
 
 
 def summary(score=82):
-    z = timedelta()
-    return SleepSummary(score, z, z, z, z)
+    h = timedelta(hours=1)
+    return SleepSummary(score, "Good", h, 4 * h, h, timedelta(minutes=10))
 
 
 def person(name, *emails):
@@ -34,7 +34,7 @@ class FakeSender:
         self.sent = []
         self.fail = set(fail)
 
-    def send(self, to, subject, body):
+    def send(self, to, subject, text, html):
         self.sent.append(to)
         if to in self.fail:
             self.fail.discard(to)
@@ -104,13 +104,18 @@ def test_partial_send_failure_retries_only_failed(tmp_path, monkeypatch):
     assert sender2.sent == [GROMIT]
 
 
-def test_message_has_score_and_stages():
-    p = person("wallace", WALLACE)
-    assert notify.Notifier._subject(p, summary(88)) == "wallace's Garmin sleep score: 88/100"
-    body = notify.Notifier._body(p, summary(88), date(2026, 9, 2))
-    assert "Wed 02 Sep" in body
-    assert "Score: 88/100" in body
-    assert "deep 0h00m" in body
+def test_state_records_score_and_stage_minutes(tmp_path, monkeypatch):
+    set_fetch(monkeypatch, lambda ts, day: summary(88))
+    cfg = config(tmp_path, person("wallace", WALLACE))
+    notify.Notifier(cfg, FakeSender()).run()
+
+    import json
+
+    saved = json.loads((tmp_path / "state.json").read_text())
+    record = next(iter(saved.values()))["wallace"]
+    assert record["score"] == 88
+    assert record["stages_min"] == {"deep": 60, "light": 240, "rem": 60, "awake": 10}
+    assert record["recipients"] == [WALLACE]
 
 
 def test_dry_run_sends_nothing(tmp_path, monkeypatch):

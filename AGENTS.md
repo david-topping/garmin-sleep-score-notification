@@ -14,9 +14,10 @@ in `tests/`:
 | Module         | Class(es)                       | Responsibility |
 | -------------- | ------------------------------- | -------------- |
 | `config.py`    | `Config`, `Person`, `Recipient` | Load `people.yaml` + `.env` into frozen dataclasses. `Config.load()`. |
-| `garmin.py`    | `GarminFetcher`, `SleepSummary` | Token-only login + fetch. `SleepSummary.from_payload()` returns `None` when the score isn't synced yet; raises `GarminError` on auth/network failure. |
-| `mailer.py`    | `EmailSender`                   | One Resend API send; raises `EmailError`. |
-| `state.py`     | `SentState`                     | JSON file: per date + person, the score and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
+| `garmin.py`    | `GarminFetcher`, `SleepSummary` | Token-only login + fetch. `SleepSummary` carries score, qualifier and stage breakdown; `from_payload()` returns `None` when not synced yet; raises `GarminError` on auth/network failure. |
+| `email_content.py` | `SleepEmail`               | Renders `subject` / `text` / `html` (self-contained inline-styled card) from a `SleepSummary`. |
+| `mailer.py`    | `EmailSender`                   | One Resend API send (`text` + `html`); raises `EmailError`. |
+| `state.py`     | `SentState`                     | JSON file: per date + person, `score` + `stages_min` + which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
 | `notify.py`    | `Notifier`                      | Orchestration + `garmin-sleep-notify` CLI (`--dry-run`, `--people-file`). |
 | `auth_setup.py`| `AuthSetup`                     | Interactive one-time login + token dump (`garmin-auth-setup <name>`). |
 | `__init__.py`  | —                               | `configure_logging()` only. |

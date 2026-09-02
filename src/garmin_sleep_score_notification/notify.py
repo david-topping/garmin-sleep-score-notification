@@ -7,7 +7,8 @@ from datetime import date, datetime
 
 from . import configure_logging
 from .config import Config, ConfigError, Person
-from .garmin import GarminError, GarminFetcher, SleepSummary
+from .email_content import SleepEmail
+from .garmin import GarminError, GarminFetcher
 from .mailer import EmailError, EmailSender
 from .state import SentState
 
@@ -44,14 +45,9 @@ class Notifier:
             if summary is None:
                 log.info("%s: no sleep score yet", person.name)
                 continue
+            email = SleepEmail(person.name, day, summary)
             recipients = ", ".join(r.name for r in person.recipients)
-            log.info(
-                "%s: would email [%s]: %s / %s",
-                person.name,
-                recipients,
-                self._subject(person, summary),
-                self._body(person, summary, day),
-            )
+            log.info("%s: would email [%s] - %s", person.name, recipients, email.subject)
         return 0
 
     def _process(self, person: Person, day: date) -> None:
@@ -71,34 +67,22 @@ class Notifier:
             log.info("%s: no sleep score yet, will retry next run", person.name)
             return
 
-        subject = self._subject(person, summary)
-        body = self._body(person, summary, day)
+        email = SleepEmail(person.name, day, summary)
+        record = summary.as_record()
         already = self.state.sent_recipients(person.name, day)
         for recipient in person.recipients:
             if recipient.email in already:
                 continue
             try:
-                self.sender.send(recipient.email, subject, body)
+                self.sender.send(recipient.email, email.subject, email.text, email.html)
             except EmailError as exc:
                 log.error("%s -> %s: send failed (%s), will retry", person.name, recipient.name, exc)
                 self.failures += 1
                 continue
-            self.state.mark(person.name, day, summary.score, recipient.email)
+            self.state.mark(person.name, day, record, recipient.email)
             log.info("%s -> %s: sent score %d", person.name, recipient.name, summary.score)
 
         self.state.save()
-
-    @staticmethod
-    def _subject(person: Person, summary: SleepSummary) -> str:
-        return f"{person.name}'s Garmin sleep score: {summary.score}/100"
-
-    @staticmethod
-    def _body(person: Person, summary: SleepSummary, day: date) -> str:
-        return (
-            f"{person.name}'s Garmin sleep for {day:%a %d %b}\n\n"
-            f"Score: {summary.score}/100\n"
-            f"{summary.stages()}\n"
-        )
 
     def _today(self) -> date:
         if self.config.timezone:

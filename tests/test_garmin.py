@@ -1,10 +1,10 @@
 from garmin_sleep_score_notification.garmin import SleepSummary
 
 
-def payload(score, deep=3600, light=14400, rem=5400, awake=720):
+def payload(score, deep=3600, light=14400, rem=5400, awake=720, qualifier="GOOD"):
     return {
         "dailySleepDTO": {
-            "sleepScores": {"overall": {"value": score}},
+            "sleepScores": {"overall": {"value": score, "qualifierKey": qualifier}},
             "deepSleepSeconds": deep,
             "lightSleepSeconds": light,
             "remSleepSeconds": rem,
@@ -13,14 +13,30 @@ def payload(score, deep=3600, light=14400, rem=5400, awake=720):
     }
 
 
-def test_parses_score_and_stages():
-    summary = SleepSummary.from_payload(payload(87))
+def test_parses_score_stages_and_qualifier():
+    summary = SleepSummary.from_payload(payload(87, qualifier="EXCELLENT"))
     assert summary.score == 87
-    assert summary.stages() == "deep 1h00m, light 4h00m, rem 1h30m, awake 0h12m"
+    assert summary.qualifier == "Excellent"
+    assert summary.stages() == "deep 1h 00m, light 4h 00m, rem 1h 30m, awake 0h 12m"
 
 
-def test_float_score_coerced():
-    assert SleepSummary.from_payload(payload(87.0)).score == 87
+def test_qualifier_falls_back_to_score_bucket():
+    assert SleepSummary.from_payload(payload(95, qualifier="")).qualifier == "Excellent"
+    assert SleepSummary.from_payload(payload(72, qualifier="")).qualifier == "Fair"
+
+
+def test_breakdown_percentages_are_of_time_asleep():
+    # deep 1h, light 1h, rem 2h -> 25 / 25 / 50
+    summary = SleepSummary.from_payload(payload(80, deep=3600, light=3600, rem=7200))
+    deep, light, rem, awake = summary.breakdown()
+    assert (deep.percent, light.percent, rem.percent) == (25, 25, 50)
+    assert awake.label == "Awake"
+
+
+def test_as_record_is_compact():
+    rec = SleepSummary.from_payload(payload(90)).as_record()
+    assert rec["score"] == 90
+    assert rec["stages_min"] == {"deep": 60, "light": 240, "rem": 90, "awake": 12}
 
 
 def test_not_synced_returns_none():

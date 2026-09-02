@@ -24,9 +24,9 @@ class SentState:
     def is_done(self, person: str, day: date, recipients: set[str]) -> bool:
         return bool(recipients) and recipients.issubset(self.sent_recipients(person, day))
 
-    def mark(self, person: str, day: date, score: int, recipient: str) -> None:
-        record = self._day(day).setdefault(person, {"score": score, "recipients": []})
-        record["score"] = score
+    def mark(self, person: str, day: date, summary: dict, recipient: str) -> None:
+        record = self._day(day).setdefault(person, {"recipients": []})
+        record.update(summary)
         if recipient not in record["recipients"]:
             record["recipients"].append(recipient)
 

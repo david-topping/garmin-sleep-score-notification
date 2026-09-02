@@ -19,7 +19,7 @@ def test_send_ok(monkeypatch):
 
     monkeypatch.setattr(mailer.requests, "post", fake_post)
     EmailSender("re_key", "Sleep <sleep@westwallaby.co.uk>").send(
-        "gromit@westwallaby.co.uk", "subj", "body"
+        "gromit@westwallaby.co.uk", "subj", "body", "<p>body</p>"
     )
 
     assert seen["url"] == "https://api.resend.com/emails"
@@ -29,13 +29,14 @@ def test_send_ok(monkeypatch):
         "to": "gromit@westwallaby.co.uk",
         "subject": "subj",
         "text": "body",
+        "html": "<p>body</p>",
     }
 
 
 def test_missing_api_key(monkeypatch):
     monkeypatch.setattr(mailer.requests, "post", lambda **_: FakeResp())
     with pytest.raises(EmailError):
-        EmailSender("", "sleep@westwallaby.co.uk").send("gromit@westwallaby.co.uk", "s", "b")
+        EmailSender("", "sleep@westwallaby.co.uk").send("gromit@westwallaby.co.uk", "s", "b", "h")
 
 
 def test_http_error(monkeypatch):
@@ -43,7 +44,7 @@ def test_http_error(monkeypatch):
         mailer.requests, "post", lambda url, headers, json, timeout: FakeResp(422, "bad")
     )
     with pytest.raises(EmailError):
-        EmailSender("re_key", "sleep@westwallaby.co.uk").send("gromit@westwallaby.co.uk", "s", "b")
+        EmailSender("re_key", "sleep@westwallaby.co.uk").send("g@x.co.uk", "s", "b", "h")
 
 
 def test_network_error(monkeypatch):
@@ -52,4 +53,4 @@ def test_network_error(monkeypatch):
 
     monkeypatch.setattr(mailer.requests, "post", boom)
     with pytest.raises(EmailError):
-        EmailSender("re_key", "sleep@westwallaby.co.uk").send("gromit@westwallaby.co.uk", "s", "b")
+        EmailSender("re_key", "sleep@westwallaby.co.uk").send("g@x.co.uk", "s", "b", "h")

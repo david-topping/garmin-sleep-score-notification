@@ -4,16 +4,9 @@ Every morning, fetch each configured person's Garmin Connect sleep score + stage
 breakdown and email it to their recipients via [Resend](https://resend.com).
 Runs unattended on a headless GCP `e2-micro` VM — no phone dependency.
 
-Email looks like:
-
-```
-Subject: wallace's Garmin sleep score: 88/100
-
-wallace's Garmin sleep for Wed 03 Sep
-
-Score: 88/100
-deep 1h12m, light 4h05m, rem 1h35m, awake 0h18m
-```
+Each email is a small HTML card — score, qualifier, a stacked deep/light/REM bar,
+and per-stage durations — with a plain-text fallback. Subject:
+`wallace's sleep score: 88/100 (Good)`.
 
 ## Config
 
@@ -110,9 +103,10 @@ cat state/sent_state.json
 
 ```
 config.py    people.yaml + .env  -> Config / Person / Recipient
-garmin.py    GarminFetcher, SleepSummary (score + stages)
+garmin.py    GarminFetcher, SleepSummary (score + qualifier + stages)
+email_content.py  SleepEmail (subject / text / html)
 mailer.py    EmailSender (Resend)
-state.py     SentState (sent-today JSON tracker)
+state.py     SentState (sent-today JSON tracker; stores score + stage minutes)
 notify.py    Notifier + garmin-sleep-notify CLI
 auth_setup.py  AuthSetup + garmin-auth-setup CLI
 scripts/install-cron.sh   install/remove the VM cron entries

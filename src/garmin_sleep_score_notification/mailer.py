@@ -14,14 +14,20 @@ class EmailSender:
         self.api_key = api_key
         self.sender = sender
 
-    def send(self, to: str, subject: str, body: str) -> None:
+    def send(self, to: str, subject: str, text: str, html: str) -> None:
         if not self.api_key:
             raise EmailError("RESEND_API_KEY is not set")
         try:
             resp = requests.post(
                 self.URL,
                 headers={"Authorization": f"Bearer {self.api_key}"},
-                json={"from": self.sender, "to": to, "subject": subject, "text": body},
+                json={
+                    "from": self.sender,
+                    "to": to,
+                    "subject": subject,
+                    "text": text,
+                    "html": html,
+                },
                 timeout=30,
             )
         except requests.RequestException as exc:
