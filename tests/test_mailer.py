@@ -1,6 +1,9 @@
+import base64
+
 import pytest
 
 from garmin_sleep_score_notification import mailer
+from garmin_sleep_score_notification.email_content import Attachment
 from garmin_sleep_score_notification.mailer import EmailError, EmailSender
 
 
@@ -31,6 +34,40 @@ def test_send_ok(monkeypatch):
         "text": "body",
         "html": "<p>body</p>",
     }
+
+
+def test_send_with_inline_attachment(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        mailer.requests,
+        "post",
+        lambda url, headers, json, timeout: seen.update(json=json) or FakeResp(),
+    )
+    EmailSender("re_key", "sleep@westwallaby.co.uk").send(
+        "gromit@westwallaby.co.uk",
+        "subj",
+        "body",
+        '<img src="cid:sleep-timeline">',
+        [Attachment("sleep-timeline.png", b"\x89PNG...", "sleep-timeline")],
+    )
+    assert seen["json"]["attachments"] == [
+        {
+            "filename": "sleep-timeline.png",
+            "content": base64.b64encode(b"\x89PNG...").decode("ascii"),
+            "content_id": "sleep-timeline",
+        }
+    ]
+
+
+def test_no_attachments_key_when_none_given(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        mailer.requests,
+        "post",
+        lambda url, headers, json, timeout: seen.update(json=json) or FakeResp(),
+    )
+    EmailSender("re_key", "s@x.co").send("g@x.co", "s", "b", "h")
+    assert "attachments" not in seen["json"]
 
 
 def test_missing_api_key(monkeypatch):

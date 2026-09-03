@@ -67,13 +67,16 @@ class Notifier:
             return
 
         email = SleepEmail(person.name, day, summary)
+        attachments = email.attachments
         record = summary.as_record()
         already = self.state.sent_recipients(person.name, day)
         for recipient in person.recipients:
             if recipient.email in already:
                 continue
             try:
-                self.sender.send(recipient.email, email.subject, email.text, email.html)
+                self.sender.send(
+                    recipient.email, email.subject, email.text, email.html, attachments
+                )
             except EmailError as exc:
                 log.error("%s -> %s: send failed (%s), will retry", person.name, recipient.name, exc)
                 self.failures += 1

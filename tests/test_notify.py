@@ -3,7 +3,7 @@ from pathlib import Path
 
 from garmin_sleep_score_notification import notify
 from garmin_sleep_score_notification.config import Config, Person, Recipient
-from garmin_sleep_score_notification.garmin import GarminError, SleepSummary
+from garmin_sleep_score_notification.garmin import GarminError, SleepSummary, StageSpan
 from garmin_sleep_score_notification.mailer import EmailError
 
 WALLACE = "wallace@westwallaby.co.uk"
@@ -34,8 +34,9 @@ class FakeSender:
         self.sent = []
         self.fail = set(fail)
 
-    def send(self, to, subject, text, html):
+    def send(self, to, subject, text, html, attachments=()):
         self.sent.append(to)
+        self.last_attachments = attachments
         if to in self.fail:
             self.fail.discard(to)
             raise EmailError("temporary")
@@ -116,6 +117,23 @@ def test_state_records_score_and_stage_minutes(tmp_path, monkeypatch):
     assert record["score"] == 88
     assert record["stages_min"] == {"deep": 60, "light": 240, "rem": 60, "awake": 10}
     assert record["recipients"] == [WALLACE]
+
+
+def test_timeline_is_sent_as_an_inline_attachment(tmp_path, monkeypatch):
+    h = timedelta(hours=1)
+    with_timeline = SleepSummary(
+        80, "Good", h, 4 * h, h, timedelta(minutes=10),
+        (StageSpan("Light", 0.0, 0.7), StageSpan("Deep", 0.7, 1.7)),
+    )
+    set_fetch(monkeypatch, lambda ts, day: with_timeline)
+    sender = FakeSender()
+    cfg = config(tmp_path, person("wallace", WALLACE))
+
+    notify.Notifier(cfg, sender).run()
+
+    (attachment,) = sender.last_attachments
+    assert attachment.content_id == "sleep-timeline"
+    assert attachment.content[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_dry_run_sends_nothing(tmp_path, monkeypatch):

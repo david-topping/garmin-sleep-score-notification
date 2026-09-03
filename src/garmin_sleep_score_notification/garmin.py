@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, timedelta
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from garminconnect import Garmin, GarminConnectAuthenticationError
@@ -9,6 +9,9 @@ from garminconnect import Garmin, GarminConnectAuthenticationError
 
 class GarminError(Exception):
     pass
+
+
+_LEVEL = {0.0: "Deep", 1.0: "Light", 2.0: "REM", 3.0: "Awake"}
 
 
 def _qualifier(score: int) -> str:
@@ -29,6 +32,13 @@ class Stage:
 
 
 @dataclass(frozen=True)
+class StageSpan:
+    label: str
+    start: float  # hours from the first recorded stage
+    end: float
+
+
+@dataclass(frozen=True)
 class SleepSummary:
     score: int
     qualifier: str
@@ -36,16 +46,20 @@ class SleepSummary:
     light: timedelta
     rem: timedelta
     awake: timedelta
+    timeline: tuple[StageSpan, ...] = field(default_factory=tuple)
+    start_local: datetime | None = None
 
     @classmethod
     def from_payload(cls, payload: object) -> SleepSummary | None:
-        dto = (payload if isinstance(payload, dict) else {}).get("dailySleepDTO") or {}
+        payload = payload if isinstance(payload, dict) else {}
+        dto = payload.get("dailySleepDTO") or {}
         overall = (dto.get("sleepScores") or {}).get("overall") or {}
         score = overall.get("value")
         if not isinstance(score, (int, float)):
             return None
         score = int(score)
         qualifier = str(overall.get("qualifierKey") or "").title() or _qualifier(score)
+        timeline, start_local = _parse_timeline(payload.get("sleepLevels"), dto)
         return cls(
             score,
             qualifier,
@@ -53,6 +67,8 @@ class SleepSummary:
             timedelta(seconds=dto.get("lightSleepSeconds") or 0),
             timedelta(seconds=dto.get("remSleepSeconds") or 0),
             timedelta(seconds=dto.get("awakeSleepSeconds") or 0),
+            timeline,
+            start_local,
         )
 
     @property
@@ -70,6 +86,45 @@ class SleepSummary:
     def as_record(self) -> dict:
         mins = {s.label.lower(): round(s.duration.total_seconds() / 60) for s in self.breakdown()}
         return {"score": self.score, "qualifier": self.qualifier, "stages_min": mins}
+
+
+def _dt(value: object) -> datetime:
+    return datetime.fromisoformat(str(value).replace("Z", ""))
+
+
+def _parse_timeline(
+    levels: object, dto: dict
+) -> tuple[tuple[StageSpan, ...], datetime | None]:
+    spans: list[tuple[str, datetime, datetime]] = []
+    for lv in levels or []:
+        try:
+            label = _LEVEL.get(float(lv["activityLevel"]))
+            start, end = _dt(lv["startGMT"]), _dt(lv["endGMT"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not label or end <= start:
+            continue
+        if spans and spans[-1][0] == label and (start - spans[-1][2]).total_seconds() <= 1:
+            spans[-1] = (label, spans[-1][1], end)
+        else:
+            spans.append((label, start, end))
+    if not spans:
+        return (), None
+
+    t0 = spans[0][1]
+    timeline = tuple(
+        StageSpan(
+            label,
+            (start - t0).total_seconds() / 3600,
+            (end - t0).total_seconds() / 3600,
+        )
+        for label, start, end in spans
+    )
+    gmt_ms, local_ms = dto.get("sleepStartTimestampGMT"), dto.get("sleepStartTimestampLocal")
+    start_local = None
+    if isinstance(gmt_ms, (int, float)) and isinstance(local_ms, (int, float)):
+        start_local = t0 + timedelta(milliseconds=local_ms - gmt_ms)
+    return timeline, start_local
 
 
 class GarminFetcher:

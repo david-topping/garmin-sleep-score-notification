@@ -3,8 +3,9 @@
 ## Purpose
 
 Each morning, fetch every configured person's Garmin Connect sleep score plus
-stage breakdown (deep / light / rem / awake) and email it to their recipients via
-the Resend API. Runs unattended on a headless GCP VM with no phone dependency.
+stage breakdown (deep / light / rem / awake) and overnight stage timeline, and
+email it to their recipients via the Resend API. Runs unattended on a headless
+GCP VM with no phone dependency.
 
 ## Architecture
 
@@ -14,10 +15,11 @@ unit-tested in `tests/`:
 | Module         | Class(es)                       | Responsibility |
 | -------------- | ------------------------------- | -------------- |
 | `config.py`    | `Config`, `Person`, `Recipient` | Load `people.yaml` and `.env` into frozen dataclasses. `Config.load()`. |
-| `garmin.py`    | `GarminFetcher`, `SleepSummary` | Token-only login and fetch. `SleepSummary` is pure sleep data (score, qualifier, stage breakdown), no presentation; `from_payload()` returns `None` when not synced yet; raises `GarminError` on auth/network failure. |
-| `email_content.py` | `SleepEmail`               | Renders `subject`, `text`, and `html` from a `SleepSummary`, and owns all presentation (stage/qualifier colours, `hm()` duration formatting). The card is self-contained (no images, no external requests): stage split is an inline `<svg>` donut, with a legend that carries the same figures for clients that strip SVG (Gmail). |
+| `garmin.py`    | `GarminFetcher`, `SleepSummary`, `StageSpan` | Token-only login and fetch. `SleepSummary` is pure sleep data (score, qualifier, stage breakdown, and a `timeline` of `StageSpan`s parsed from `sleepLevels`), no presentation; `from_payload()` returns `None` when not synced yet; raises `GarminError` on auth/network failure. |
+| `email_content.py` | `SleepEmail`, `Attachment`  | Renders `subject`, `text`, `html`, and `attachments` from a `SleepSummary`, and owns all presentation (stage/qualifier colours, `hm()` duration formatting). The card makes no external requests: stage split is an inline `<svg>` donut (with a legend carrying the same figures for clients that strip SVG, e.g. Gmail), and the stage timeline is a PNG embedded via `cid:` so it renders in every client including Gmail. `attachments` is empty when the payload carried no `sleepLevels`. |
 | `donut.py`     | `Donut`                         | Inline-SVG donut renderer: `(colour, fraction)` segments plus centre text in, `<svg>` string out. No images or requests. |
-| `mailer.py`    | `EmailSender`                   | One Resend API send (`text` plus `html`); raises `EmailError`. |
+| `hypnogram.py` | `Hypnogram`                     | Pillow renderer for the sleep-stage timeline: `StageSpan`s plus stage colours in, PNG bytes out (`None` when empty). No external requests. |
+| `mailer.py`    | `EmailSender`                   | One Resend API send (`text`, `html`, and optional inline `attachments`); raises `EmailError`. |
 | `state.py`     | `SentState`                     | JSON file: per date and person, `score`, `stages_min`, and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
 | `notify.py`    | `Notifier`                      | Orchestration plus the `garmin-sleep-notify` CLI (`--dry-run`, `--people-file`). |
 | `auth_setup.py`| `AuthSetup`                     | Interactive one-time login and token dump (`garmin-auth-setup <name>`). |

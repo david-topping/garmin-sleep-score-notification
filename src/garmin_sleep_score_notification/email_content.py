@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, timedelta
 from html import escape
 
 from .donut import Donut
 from .garmin import SleepSummary
+from .hypnogram import Hypnogram
 
 _STAGE_COLOUR = {"Deep": "#2f4b7c", "Light": "#5b8def", "REM": "#7b61ff", "Awake": "#e8a33d"}
+_TIMELINE_CID = "sleep-timeline"
 _QUALIFIER_COLOUR = {
     "Excellent": "#2f8a4e",
     "Good": "#2f8a4e",
@@ -18,6 +21,13 @@ _QUALIFIER_COLOUR = {
 def hm(td: timedelta) -> str:
     total = int(td.total_seconds())
     return f"{total // 3600}h {total % 3600 // 60:02d}m"
+
+
+@dataclass(frozen=True)
+class Attachment:
+    filename: str
+    content: bytes
+    content_id: str
 
 
 class SleepEmail:
@@ -51,6 +61,25 @@ class SleepEmail:
             if st.label != "Awake"
         ]
         return Donut(segments, hm(self.summary.asleep), "TOTAL SLEEP").svg()
+
+    @property
+    def attachments(self) -> list[Attachment]:
+        png = Hypnogram(
+            self.summary.timeline, _STAGE_COLOUR, self.summary.start_local
+        ).png()
+        if png is None:
+            return []
+        return [Attachment("sleep-timeline.png", png, _TIMELINE_CID)]
+
+    def _timeline_img(self) -> str:
+        if not self.summary.timeline:
+            return ""
+        alt = escape(", ".join(f"{st.label} {hm(st.duration)}" for st in self.summary.breakdown()))
+        return (
+            f'<div style="margin:6px 0 2px;"><img src="cid:{_TIMELINE_CID}" width="396" '
+            f'alt="Sleep stage timeline: {alt}" '
+            f'style="display:block;margin:0 auto;max-width:100%;height:auto;border:0;"></div>'
+        )
 
     @property
     def html(self) -> str:
@@ -88,6 +117,7 @@ class SleepEmail:
         <span style="font-size:16px;font-weight:700;color:{qcolour};margin-left:8px;">{s.qualifier}</span>
       </div>
       <div style="text-align:center;margin:14px 0 4px;">{self._donut_svg()}</div>
+      {self._timeline_img()}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:8px;">
         {rows}
         <tr><td colspan="2" style="padding:9px 0 0;border-top:1px solid #e6e9ee;color:#4a5160;font-weight:600;">Total sleep</td>
