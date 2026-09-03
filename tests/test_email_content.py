@@ -66,20 +66,9 @@ def test_html_forces_light_scheme():
     assert 'name="color-scheme" content="light only"' in EMAIL.html
 
 
-def test_html_has_inline_svg_donut_and_total():
+def test_html_carries_the_stage_table_and_total():
     html = EMAIL.html
-    assert "<svg" in html
-    assert "TOTAL SLEEP" in html and "6h 00m" in html
-    # one sector path per non-awake stage
-    assert html.count("<path") == 3
-
-
-def test_donut_sectors_are_contiguous_and_cover_the_circle():
-    import re
-
-    svg = EMAIL._donut_svg()
-    # each sector starts with "M x y" on the outer radius; the first sector starts at
-    # the top (x == 60) and the sectors chain end-to-start around the circle
-    starts = re.findall(r'd="M ([\d.]+) ([\d.]+) A 52', svg)
-    assert len(starts) == 3
-    assert abs(float(starts[0][0]) - 60) < 0.01  # first sector begins at 12 o'clock
+    assert "<svg" not in html  # no chart in the HTML itself; the timeline is a cid: image
+    for stage in ("Deep", "Light", "REM", "Awake"):
+        assert stage in html
+    assert "Total sleep" in html and "6h 00m" in html

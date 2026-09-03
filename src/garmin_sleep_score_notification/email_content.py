@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from html import escape
 
-from .donut import Donut
 from .garmin import SleepSummary
 from .hypnogram import Hypnogram
 
@@ -53,15 +52,6 @@ class SleepEmail:
         lines += [f"  {st.label:<6} {hm(st.duration):>7}" for st in s.breakdown()]
         return "\n".join(lines) + "\n"
 
-    def _donut_svg(self) -> str:
-        asleep = self.summary.asleep.total_seconds()
-        segments = [
-            (_STAGE_COLOUR[st.label], st.duration.total_seconds() / asleep if asleep else 0.0)
-            for st in self.summary.breakdown()
-            if st.label != "Awake"
-        ]
-        return Donut(segments, hm(self.summary.asleep), "TOTAL SLEEP").svg()
-
     @property
     def attachments(self) -> list[Attachment]:
         png = Hypnogram(
@@ -76,7 +66,7 @@ class SleepEmail:
             return ""
         alt = escape(", ".join(f"{st.label} {hm(st.duration)}" for st in self.summary.breakdown()))
         return (
-            f'<div style="margin:6px 0 2px;"><img src="cid:{_TIMELINE_CID}" width="396" '
+            f'<div style="margin:6px 0 2px;"><img src="cid:{_TIMELINE_CID}" width="404" '
             f'alt="Sleep stage timeline: {alt}" '
             f'style="display:block;margin:0 auto;max-width:100%;height:auto;border:0;"></div>'
         )
@@ -116,7 +106,6 @@ class SleepEmail:
         <span style="font-size:19px;color:#7b8394;font-weight:600;">/ 100</span>
         <span style="font-size:16px;font-weight:700;color:{qcolour};margin-left:8px;">{s.qualifier}</span>
       </div>
-      <div style="text-align:center;margin:14px 0 4px;">{self._donut_svg()}</div>
       {self._timeline_img()}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:8px;">
         {rows}

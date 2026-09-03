@@ -26,10 +26,10 @@ VM via cron, with no phone or browser session after one-time setup.
 | Module | Responsibility |
 |---|---|
 | `config.py` | Load `.env` and `people.yaml` into `Config` / `Person` / `Recipient` |
-| `garmin.py` | `GarminFetcher`, `SleepSummary` (pure sleep data: score, qualifier, stage breakdown) |
-| `email_content.py` | `SleepEmail`: subject, plain-text, HTML; owns colours and formatting |
-| `donut.py` | `Donut`: inline-SVG donut renderer |
-| `mailer.py` | `EmailSender`: Resend API |
+| `garmin.py` | `GarminFetcher`, `SleepSummary` (pure sleep data: score, qualifier, stage breakdown, overnight stage timeline) |
+| `email_content.py` | `SleepEmail`: subject, plain-text, HTML, and the timeline PNG attachment; owns colours and formatting |
+| `hypnogram.py` | `Hypnogram`: Pillow renderer for the sleep-stage timeline PNG |
+| `mailer.py` | `EmailSender`: Resend API (text, HTML, inline attachments) |
 | `state.py` | `SentState`: sent-today tracker, 7-day pruning |
 | `notify.py` | `Notifier`: orchestration plus the `garmin-sleep-notify` CLI |
 | `auth_setup.py` | `AuthSetup`: the `garmin-auth-setup` CLI |

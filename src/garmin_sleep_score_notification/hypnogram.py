@@ -9,8 +9,8 @@ from .garmin import StageSpan
 
 _ORDER = ("Awake", "REM", "Light", "Deep")  # top to bottom, Garmin's order
 _S = 2  # supersample for crisp rendering on retina clients
-_W, _H = 452 * _S, 132 * _S
-_PAD_L, _PAD_R, _PAD_T, _PAD_B = 56 * _S, 6 * _S, 10 * _S, 22 * _S
+_W, _H = 404 * _S, 150 * _S
+_PAD_L, _PAD_R, _PAD_T, _PAD_B = 44 * _S, 4 * _S, 8 * _S, 20 * _S
 _GRID, _STEP, _LABEL = "#eceef2", "#aeb4c0", "#7b8394"
 
 
@@ -35,7 +35,7 @@ class Hypnogram:
 
         img = Image.new("RGB", (_W, _H), "#ffffff")
         d = ImageDraw.Draw(img)
-        font = ImageFont.load_default(10 * _S)
+        font = ImageFont.load_default(9 * _S)
         plot_h = _H - _PAD_T - _PAD_B
         row_h = plot_h / len(_ORDER)
 
@@ -46,7 +46,7 @@ class Hypnogram:
             return _PAD_T + (_ORDER.index(label) + 0.5) * row_h
 
         for label in _ORDER:
-            d.text((9 * _S, mid(label)), label, font=font, fill=_LABEL, anchor="lm")
+            d.text((3 * _S, mid(label)), label, font=font, fill=_LABEL, anchor="lm")
 
         for offset, text in self._ticks(total):
             tx = x(offset)
@@ -60,7 +60,7 @@ class Hypnogram:
         r = 3 * _S
         for s in self.spans:
             x0, x1 = x(s.start), x(s.end)
-            y0, y1 = mid(s.label) - row_h * 0.32, mid(s.label) + row_h * 0.32
+            y0, y1 = mid(s.label) - row_h * 0.29, mid(s.label) + row_h * 0.29
             box = (x0, y0, max(x1, x0 + _S), y1)
             if x1 - x0 < 2 * r:
                 d.rectangle(box, fill=self.colours[s.label])
