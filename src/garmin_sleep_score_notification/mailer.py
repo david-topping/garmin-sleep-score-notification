@@ -41,7 +41,7 @@ class EmailSender:
                 {
                     "filename": a.filename,
                     "content": base64.b64encode(a.content).decode("ascii"),
-                    "content_id": a.content_id,
+                    **({"content_id": a.content_id} if a.content_id else {}),
                 }
                 for a in attachments
             ]

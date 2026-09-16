@@ -4,13 +4,16 @@ import argparse
 import logging
 import sys
 from datetime import date, datetime
+from email.utils import parseaddr
 
 from . import configure_logging
+from .avatar import avatar_png
 from .config import Config, ConfigError, Person
-from .email_content import SleepEmail
+from .email_content import Attachment, SleepEmail
 from .garmin import GarminError, GarminFetcher, SleepSummary
 from .mailer import EmailError, EmailSender
 from .state import SentState
+from .vcard import build_vcard
 
 log = logging.getLogger("garmin_sleep")
 
@@ -21,6 +24,14 @@ class Notifier:
         self.sender = sender or EmailSender(config.resend_api_key, config.email_from)
         self.state = SentState(config.state_file)
         self.failures = 0
+        self._sender_contact = self._build_sender_contact(config.email_from)
+
+    @staticmethod
+    def _build_sender_contact(email_from: str) -> Attachment:
+        name, addr = parseaddr(email_from)
+        name = name or addr
+        vcf = build_vcard(name, addr, avatar_png())
+        return Attachment(f"{name}.vcf", vcf)
 
     def run(self) -> int:
         day = self._today()
@@ -67,7 +78,7 @@ class Notifier:
             return
 
         email = SleepEmail(person.name, day, summary)
-        attachments = email.attachments
+        attachments = [*email.attachments, self._sender_contact]
         record = summary.as_record()
         already = self.state.sent_recipients(person.name, day)
         for recipient in person.recipients:

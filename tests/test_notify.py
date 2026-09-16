@@ -131,9 +131,24 @@ def test_timeline_is_sent_as_an_inline_attachment(tmp_path, monkeypatch):
 
     notify.Notifier(cfg, sender).run()
 
-    (attachment,) = sender.last_attachments
-    assert attachment.content_id == "sleep-timeline"
-    assert attachment.content[:8] == b"\x89PNG\r\n\x1a\n"
+    timeline, _contact = sender.last_attachments
+    assert timeline.content_id == "sleep-timeline"
+    assert timeline.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_sender_vcard_is_attached_to_every_email(tmp_path, monkeypatch):
+    set_fetch(monkeypatch, lambda ts, day: summary(82))
+    sender = FakeSender()
+    cfg = config(tmp_path, person("wallace", WALLACE))
+
+    notify.Notifier(cfg, sender).run()
+
+    (contact,) = sender.last_attachments
+    assert contact.filename == "sleep@westwallaby.co.uk.vcf"
+    assert contact.content_id is None
+    assert contact.content.startswith(b"BEGIN:VCARD")
+    assert b"EMAIL;TYPE=INTERNET:sleep@westwallaby.co.uk" in contact.content
+    assert b"PHOTO;ENCODING=b;TYPE=PNG:" in contact.content
 
 
 def test_dry_run_sends_nothing(tmp_path, monkeypatch):
