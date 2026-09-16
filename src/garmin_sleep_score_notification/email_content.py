@@ -26,7 +26,7 @@ def hm(td: timedelta) -> str:
 class Attachment:
     filename: str
     content: bytes
-    content_id: str | None = None
+    content_id: str
 
 
 class SleepEmail:
