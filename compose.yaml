@@ -1,9 +1,15 @@
+# Values come from .env locally, or from the stack's environment variables in Portainer.
 services:
   garmin-sleep-notify:
     build: .
     image: garmin-sleep-notify:local
     container_name: garmin-sleep-notify
     restart: unless-stopped
-    env_file: .env
+    environment:
+      RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM}
+      TZ: ${TZ:-Europe/London}
+      UPTIME_KUMA_PUSH_URL: ${UPTIME_KUMA_PUSH_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - ${DATA_DIR:-./data}:/data

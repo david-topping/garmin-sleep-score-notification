@@ -93,7 +93,7 @@ tokens auto-refresh for ~1 year.
 
 | File | Committed | Purpose |
 | --- | --- | --- |
-| `.env` / `.env.example` | no / yes | `RESEND_API_KEY`, `EMAIL_FROM`, `TZ`, `UPTIME_KUMA_PUSH_URL`, paths, log level. Also compose's `env_file`. |
+| `.env` / `.env.example` | no / yes | `RESEND_API_KEY`, `EMAIL_FROM`, `TZ`, `UPTIME_KUMA_PUSH_URL`, log level. compose interpolates these; in Portainer they're the stack's environment variables instead. |
 | `people.yaml` / `people.example.yaml` | no / yes | People and their recipient emails. Docker: `data/people.yaml`. |
 | token store per person | no | `$GARMIN_TOKENS_DIR/<name>/garmin_tokens.json` unless a person sets `token_store`. Local default `~/.garmin_tokens`, Docker `data/garmin_tokens`. |
 | `sent_state.json` | no | Runtime sent-today tracker. Local `state/`, Docker `data/state/`. |
@@ -136,29 +136,43 @@ data/
 The container writes refreshed Garmin tokens and state back here, so it must be
 owned by uid 1000: `sudo chown -R 1000:1000 data`.
 
-First deploy, on the Docker host:
+`compose.yaml` takes its settings by interpolation (`${VAR}`), not `env_file`,
+so the same file works from a local `.env` or from Portainer's stack
+environment variables. `RESEND_API_KEY` and `EMAIL_FROM` are required; the
+deploy fails fast without them.
+
+### Portainer (current)
+
+1. On the Docker host, create the data folder once (Garmin tokens can't be
+   entered through Portainer):
+   `sudo mkdir -p /opt/garmin-sleep-notify/data`, put `people.yaml` and
+   `garmin_tokens/` in it, then `sudo chown -R 1000:1000 /opt/garmin-sleep-notify/data`.
+2. Portainer > Stacks > Add stack > **Repository**: this repo's URL, reference
+   `refs/heads/main`, compose path `compose.yaml`.
+3. Environment variables: `RESEND_API_KEY`, `EMAIL_FROM`, `TZ`,
+   `UPTIME_KUMA_PUSH_URL`, and `DATA_DIR=/opt/garmin-sleep-notify/data`. It has
+   to be absolute: Portainer resolves relative paths inside its own volume.
+4. Deploy. Logs show in the container's log view.
+5. Updates: the stack's **Pull and redeploy** (with re-pull/rebuild), or turn on
+   GitOps updates (polling) to follow `main`.
+
+New person without tokens to copy:
+`docker exec -it garmin-sleep-notify garmin-auth-setup <name>`, or the container
+console in Portainer. In `people.yaml`, leave `token_store` out (or use a
+`/data/...` path); a `~/...` path from the VM won't exist in the container.
+
+### CLI alternative
 
 ```bash
 git clone <repo-url> /opt/garmin-sleep-notify && cd /opt/garmin-sleep-notify
-cp .env.example .env                       # fill in; set UPTIME_KUMA_PUSH_URL
+cp .env.example .env                       # fill in
 mkdir -p data && cp people.example.yaml data/people.yaml   # edit
 sudo chown -R 1000:1000 data
-docker compose build
-docker compose run --rm -it garmin-sleep-notify garmin-auth-setup <name>   # per person, or migrate tokens
 docker compose run --rm garmin-sleep-notify garmin-sleep-notify --dry-run
 docker compose up -d
 ```
 
-Update: `git pull && docker compose up -d --build`. Logs: Portainer's container
-log view, or `docker compose logs -f`. In `people.yaml`, leave `token_store` out
-(or use a `/data/...` path); a `~/...` path from the VM won't exist in the
-container.
-
-Portainer: a stack deployed from this directory with the CLI shows up in
-Portainer (limited control) with logs and restart. For a Portainer git-repo
-stack instead, relative paths resolve inside Portainer's own volume, so set
-`DATA_DIR` to an absolute host path and make sure `.env` exists next to the
-compose file (or switch `env_file` to Portainer's `stack.env`).
+Update with `git pull && docker compose up -d --build`.
 
 ### Migrating from the GCP VM
 
@@ -170,9 +184,9 @@ compose file (or switch `env_file` to Portainer's `stack.env`).
      lines
    - `<repo>/state/sent_state.json` to `data/state/sent_state.json` (optional:
      only stops a same-day resend)
-3. Copy `<repo>/.env` to the homelab repo's `.env` (not into `data/`), drop any
-   `PEOPLE_FILE`, `STATE_FILE` or `TIMEZONE` lines, and add `TZ` and
-   `UPTIME_KUMA_PUSH_URL`.
+3. Take `RESEND_API_KEY` and `EMAIL_FROM` from the VM's `<repo>/.env` into the
+   Portainer stack's environment variables (or a local `.env` for the CLI
+   route). Don't carry over `PEOPLE_FILE`, `STATE_FILE` or `TIMEZONE`.
 4. `sudo chown -R 1000:1000 data`, dry run, `docker compose up -d`.
 
 ## Deployment: GCP VM (deprecated)
