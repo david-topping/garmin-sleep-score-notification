@@ -57,3 +57,40 @@ def test_malformed(tmp_path):
     path = write(tmp_path, "people:\n  - name: wallace\n")
     with pytest.raises(ConfigError):
         Config.load(path)
+
+
+def test_token_store_defaults_to_tokens_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("GARMIN_TOKENS_DIR", "/data/garmin_tokens")
+    path = write(
+        tmp_path,
+        """
+        people:
+          - name: wallace
+            recipients:
+              - email: wallace@westwallaby.co.uk
+          - name: gromit
+            token_store: /srv/tokens/gromit
+            recipients:
+              - email: gromit@westwallaby.co.uk
+        """,
+    )
+    wallace, gromit = Config.load(path).people
+    assert str(wallace.token_store) == "/data/garmin_tokens/wallace"
+    assert str(gromit.token_store) == "/srv/tokens/gromit"
+
+
+def test_uptime_kuma_url_is_optional(tmp_path, monkeypatch):
+    path = write(
+        tmp_path,
+        """
+        people:
+          - name: wallace
+            recipients:
+              - email: wallace@westwallaby.co.uk
+        """,
+    )
+    monkeypatch.delenv("UPTIME_KUMA_PUSH_URL", raising=False)
+    assert Config.load(path).uptime_kuma_push_url is None
+
+    monkeypatch.setenv("UPTIME_KUMA_PUSH_URL", "https://status.westwallaby.co.uk/api/push/x")
+    assert Config.load(path).uptime_kuma_push_url == "https://status.westwallaby.co.uk/api/push/x"

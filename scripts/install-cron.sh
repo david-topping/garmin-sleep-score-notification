@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Deprecated: GCP VM only. The Docker deployment schedules via ./crontab.
 # Manage the crontab entries that run garmin-sleep-notify every 10 min from
 # 04:30 to 13:00 inclusive. Idempotent: re-running replaces the entries.
 #
