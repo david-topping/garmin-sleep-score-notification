@@ -41,9 +41,9 @@ reintroduce an "A notifies B, B notifies A" assumption.
 
 ## Scheduling
 
-Docker (current): supercronic runs `garmin-sleep-notify` every 30 min from
+Docker (current): supercronic runs `garmin-sleep-notify` every 5 min from
 06:00 to 13:00 inclusive, in the container's `TZ` (default `Europe/London`).
-The schedule is `crontab` in the repo root, two lines (`0,30 6-12`, `0 13`) so
+The schedule is `crontab` in the repo root, two lines (`*/5 6-12`, `0 13`) so
 the window edges are exact. supercronic skips a run if the previous one is
 still going.
 
