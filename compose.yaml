@@ -1,0 +1,9 @@
+services:
+  garmin-sleep-notify:
+    build: .
+    image: garmin-sleep-notify:local
+    container_name: garmin-sleep-notify
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ${DATA_DIR:-./data}:/data

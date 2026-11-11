@@ -22,3 +22,6 @@ state/
 # Garmin token stores, if kept inside the repo
 .garmin_tokens/
 
+
+# Docker bind-mounted state (people.yaml, Garmin tokens, sent-today state)
+data/

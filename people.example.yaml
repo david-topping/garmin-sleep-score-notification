@@ -5,6 +5,9 @@
 #
 # Fan-out is free: many recipients per person, the same address under many people,
 # receive-only people are just a recipient with no people entry of their own.
+#
+# token_store is optional: it defaults to $GARMIN_TOKENS_DIR/<name>
+# (~/.garmin_tokens/<name> locally, /data/garmin_tokens/<name> in Docker).
 
 people:
   - name: wallace
@@ -14,7 +17,6 @@ people:
       - { label: Gromit, email: gromit@westwallaby.co.uk }
 
   - name: gromit
-    token_store: ~/.garmin_tokens/gromit
     recipients:
       - { label: Gromit, email: gromit@westwallaby.co.uk }
       - { label: Feathers McGraw, email: feathers@penguin.co.uk }

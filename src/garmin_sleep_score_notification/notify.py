@@ -11,28 +11,58 @@ from .email_content import SleepEmail
 from .garmin import GarminError, GarminFetcher, SleepSummary
 from .mailer import EmailError, EmailSender
 from .state import SentState
+from .uptime_kuma import UptimeKuma
 
 log = logging.getLogger("garmin_sleep")
 
 
 class Notifier:
-    def __init__(self, config: Config, sender: EmailSender | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        sender: EmailSender | None = None,
+        monitor: UptimeKuma | None = None,
+    ) -> None:
         self.config = config
         self.sender = sender or EmailSender(config.resend_api_key, config.email_from)
-        self.state = SentState(config.state_file)
+        self.monitor = monitor or UptimeKuma(config.uptime_kuma_push_url)
         self.failures = 0
 
     def run(self) -> int:
+        try:
+            return self._run()
+        except Exception as exc:
+            log.exception("run failed")
+            self.monitor.down(f"run failed: {type(exc).__name__}")
+            return 1
+
+    def _run(self) -> int:
+        self.state = SentState(self.config.state_file)
         day = self._today()
         log.info("run for %s, %d people", day, len(self.config.people))
+        unexpected = []
         for person in self.config.people:
             try:
                 self._process(person, day)
-            except Exception:
+            except Exception as exc:
                 log.exception("%s: unexpected error", person.name)
                 self.failures += 1
+                unexpected.append(f"{person.name}: {type(exc).__name__}")
+        if unexpected:
+            self.monitor.down("unexpected error: " + ", ".join(unexpected))
+        else:
+            self._heartbeat(day)
         self.state.save()
         return 1 if self.failures else 0
+
+    def _heartbeat(self, day: date) -> None:
+        people = self.config.people
+        if self.state.heartbeat_pushed(day):
+            return
+        if not all(self.state.is_done(p.name, day, {r.email for r in p.recipients}) for p in people):
+            return
+        if self.monitor.up(f"{day}: sent {', '.join(p.name for p in people)}"):
+            self.state.mark_heartbeat(day)
 
     def dry_run(self) -> int:
         day = self._today()

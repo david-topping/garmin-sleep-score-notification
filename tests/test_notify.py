@@ -143,3 +143,87 @@ def test_dry_run_sends_nothing(tmp_path, monkeypatch):
     assert notify.Notifier(cfg, sender).dry_run() == 0
     assert sender.sent == []
     assert not (tmp_path / "state.json").exists()
+
+
+class FakeMonitor:
+    def __init__(self, ok=True):
+        self.pushes = []
+        self.ok = ok
+
+    def up(self, msg):
+        self.pushes.append(("up", msg))
+        return self.ok
+
+    def down(self, msg):
+        self.pushes.append(("down", msg))
+        return self.ok
+
+
+def test_pushes_up_once_when_everyone_is_sent(tmp_path, monkeypatch):
+    set_fetch(monkeypatch, lambda ts, day: summary(82))
+    cfg = config(tmp_path, person("wallace", WALLACE), person("gromit", GROMIT))
+
+    monitor = FakeMonitor()
+    notify.Notifier(cfg, FakeSender(), monitor).run()
+    ((status, msg),) = monitor.pushes
+    assert status == "up"
+    assert "wallace, gromit" in msg
+
+    monitor2 = FakeMonitor()
+    notify.Notifier(cfg, FakeSender(), monitor2).run()
+    assert monitor2.pushes == []
+
+
+def test_no_up_push_while_someone_is_pending(tmp_path, monkeypatch):
+    set_fetch(monkeypatch, lambda ts, day: summary(82) if "wallace" in str(ts) else None)
+    cfg = config(tmp_path, person("wallace", WALLACE), person("gromit", GROMIT))
+
+    monitor = FakeMonitor()
+    notify.Notifier(cfg, FakeSender(), monitor).run()
+    assert monitor.pushes == []
+
+
+def test_failed_up_push_is_retried_next_run(tmp_path, monkeypatch):
+    set_fetch(monkeypatch, lambda ts, day: summary(82))
+    cfg = config(tmp_path, person("wallace", WALLACE))
+
+    notify.Notifier(cfg, FakeSender(), FakeMonitor(ok=False)).run()
+
+    monitor = FakeMonitor()
+    notify.Notifier(cfg, FakeSender(), monitor).run()
+    assert [s for s, _ in monitor.pushes] == ["up"]
+
+
+def test_unexpected_error_pushes_down_without_details(tmp_path, monkeypatch):
+    def fetch(ts, day):
+        raise RuntimeError("token=wensleydale-secret")
+
+    set_fetch(monkeypatch, fetch)
+    cfg = config(tmp_path, person("wallace", WALLACE))
+
+    monitor = FakeMonitor()
+    assert notify.Notifier(cfg, FakeSender(), monitor).run() == 1
+    assert monitor.pushes == [("down", "unexpected error: wallace: RuntimeError")]
+
+
+def test_garmin_error_is_retried_without_down_push(tmp_path, monkeypatch):
+    def fetch(ts, day):
+        raise GarminError("expired")
+
+    set_fetch(monkeypatch, fetch)
+    cfg = config(tmp_path, person("wallace", WALLACE))
+
+    monitor = FakeMonitor()
+    assert notify.Notifier(cfg, FakeSender(), monitor).run() == 1
+    assert monitor.pushes == []
+
+
+def test_unreadable_state_pushes_down(tmp_path, monkeypatch):
+    set_fetch(monkeypatch, lambda ts, day: summary(82))
+    (tmp_path / "tea").write_text("")
+    cfg = config(tmp_path, person("wallace", WALLACE))
+    cfg = Config(**{**cfg.__dict__, "state_file": tmp_path / "tea" / "state.json"})
+
+    monitor = FakeMonitor()
+    assert notify.Notifier(cfg, FakeSender(), monitor).run() == 1
+    assert monitor.pushes == [("down", "run failed: NotADirectoryError")]

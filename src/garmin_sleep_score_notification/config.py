@@ -35,10 +35,12 @@ class Person:
     recipients: tuple[Recipient, ...]
 
     @classmethod
-    def from_dict(cls, d: dict) -> Person:
+    def from_dict(cls, d: dict, tokens_dir: Path) -> Person:
+        name = str(d["name"])
+        token_store = Path(d["token_store"]) if d.get("token_store") else tokens_dir / name
         return cls(
-            str(d["name"]),
-            Path(d["token_store"]).expanduser(),
+            name,
+            token_store.expanduser(),
             tuple(Recipient.from_dict(r) for r in d["recipients"]),
         )
 
@@ -50,6 +52,7 @@ class Config:
     timezone: str | None
     resend_api_key: str
     email_from: str
+    uptime_kuma_push_url: str | None = None
 
     @classmethod
     def load(cls, people_file: str | os.PathLike[str] | None = None) -> Config:
@@ -60,8 +63,9 @@ class Config:
         if not path.exists():
             raise ConfigError(f"{path} not found. Copy people.example.yaml to people.yaml")
 
+        tokens_dir = Path(os.getenv("GARMIN_TOKENS_DIR") or "~/.garmin_tokens")
         try:
-            people = tuple(Person.from_dict(p) for p in yaml.safe_load(path.read_text())["people"])
+            people = tuple(Person.from_dict(p, tokens_dir) for p in yaml.safe_load(path.read_text())["people"])
         except (KeyError, TypeError) as exc:
             raise ConfigError(f"{path}: malformed config ({exc})") from exc
 
@@ -79,4 +83,5 @@ class Config:
             timezone=os.getenv("TIMEZONE") or os.getenv("TZ") or None,
             resend_api_key=os.getenv("RESEND_API_KEY", ""),
             email_from=os.getenv("EMAIL_FROM", "Garmin Sleep <onboarding@resend.dev>"),
+            uptime_kuma_push_url=os.getenv("UPTIME_KUMA_PUSH_URL") or None,
         )
