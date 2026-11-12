@@ -21,8 +21,11 @@ class SentState:
     def sent_recipients(self, person: str, day: date) -> set[str]:
         return set(self._day(day).get(person, {}).get("recipients", []))
 
+    def record(self, person: str, day: date) -> dict:
+        return self._data.get(day.isoformat(), {}).get(person, {})
+
     def score(self, person: str, day: date) -> int | None:
-        return self._data.get(day.isoformat(), {}).get(person, {}).get("score")
+        return self.record(person, day).get("score")
 
     def is_done(self, person: str, day: date, recipients: set[str]) -> bool:
         return bool(recipients) and recipients.issubset(self.sent_recipients(person, day))

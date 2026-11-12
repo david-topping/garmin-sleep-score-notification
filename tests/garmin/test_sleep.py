@@ -44,7 +44,19 @@ def test_as_record_is_compact(summary):
         "score": 84,
         "qualifier": "Good",
         "stages_min": {"deep": 104, "light": 237, "rem": 109, "awake": 15},
+        "wake": "06:32",
     }
+
+
+def test_wake_time_is_local(summary):
+    assert summary.wake_local == datetime(2026, 9, 2, 6, 32)
+
+
+def test_no_wake_time_leaves_it_out_of_the_record(sleep_payload):
+    del sleep_payload["dailySleepDTO"]["sleepEndTimestampLocal"]
+    summary = SleepSummary.from_payload(sleep_payload)
+    assert summary.wake_local is None
+    assert "wake" not in summary.as_record()
 
 
 def test_timeline_defaults_empty_without_sleep_levels(sleep_payload):

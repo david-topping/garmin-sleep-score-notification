@@ -16,16 +16,16 @@ concern:
 | Module | Class(es) | Responsibility |
 | --- | --- | --- |
 | `config.py` | `Config`, `Person`, `Recipient` | Load `people.yaml` and `.env` into frozen dataclasses. `Config.load()`. |
-| `garmin/sleep.py` | `SleepSummary`, `Stage`, `StageSpan` | Pure sleep data (score, qualifier, stage breakdown, and a `timeline` of `StageSpan`s parsed from `sleepLevels`), no presentation. `from_payload()` returns `None` when not synced yet. |
+| `garmin/sleep.py` | `SleepSummary`, `Stage`, `StageSpan` | Pure sleep data (score, qualifier, stage breakdown, a `timeline` of `StageSpan`s parsed from `sleepLevels`, and `wake_local` from `sleepEndTimestampLocal`), no presentation. `from_payload()` returns `None` when not synced yet. |
 | `garmin/fetcher.py` | `GarminFetcher`, `GarminError` | Token-only login and fetch; raises `GarminError` on auth/network failure. |
 | `garmin/auth_setup.py` | `AuthSetup` | Interactive one-time login and token dump (`garmin-auth-setup <name>`). |
 | `email/content.py` | `SleepEmail`, `Attachment` | Renders `subject`, `text`, `html` and `attachments` from a `SleepSummary` plus yesterday's score, and owns presentation data (stage/qualifier colours, `hm()`). |
 | `email/templates/` | (none) | `sleep.mjml.j2` (Jinja2, then MJML via `mjml-python`) for the HTML part, `sleep.txt.j2` for the plain-text part. |
 | `email/hypnogram.py` | `Hypnogram` | Pillow renderer for the sleep-stage timeline: `StageSpan`s plus stage colours in, PNG bytes out (`None` when empty). |
 | `email/sender.py` | `EmailSender`, `EmailError` | One Resend API send (`text`, `html`, and optional inline `attachments`). |
-| `state.py` | `SentState` | JSON file: per date and person, `score`, `stages_min`, and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
+| `state.py` | `SentState` | JSON file: per date and person, `score`, `qualifier`, `stages_min`, `wake` (`HH:MM`), and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
 | `uptime_kuma.py` | `UptimeKuma` | Optional push monitor client. No-op without `UPTIME_KUMA_PUSH_URL`; 10 s timeout; never raises; never logs the URL (it embeds the token). |
-| `notify.py` | `Notifier` | Orchestration, Uptime Kuma up/down pushes, plus the `garmin-sleep-notify` CLI (`--dry-run`, `--preview DIR`, `--people-file`). |
+| `notify.py` | `Notifier` | Orchestration, Uptime Kuma up/down pushes, plus the `garmin-sleep-notify` CLI (`--dry-run`, `--preview DIR`, `--people-file`). Exit codes: `0` ok, `1` a fetch or send failed, `2` config error. |
 | `__init__.py` | (none) | `configure_logging()` only. |
 
 `garmin/` and `email/` re-export their public classes from `__init__.py`.
@@ -41,6 +41,12 @@ JavaScript and only some CSS: edit `sleep.mjml.j2`, not raw HTML. Rules:
   `cid:` so it renders everywhere, including Gmail. `attachments` is empty when
   the payload carried no `sleepLevels`.
 - Light only (`color-scheme: light only`): the PNG has a white background.
+- The leaderboard is the last section. Each row is a person's average `score`
+  and average `wake` over the last 7 days (today plus 6 earlier days in
+  `sent_state.json`, using whichever nights have data), ranked by average
+  score. Someone not synced yet today still shows their earlier average;
+  anyone with no data is listed last. Each recipient gets their own render,
+  since the leaderboard depends on the reader.
 - "vs yesterday" comes from yesterday's `score` in `sent_state.json`, omitted
   when there is none.
 - Iterate on the design with `garmin-sleep-notify --preview out/` (real fetch,
@@ -69,6 +75,11 @@ many recipients per person, the same address under many people, and receive-only
 participants (a recipient with no `people` entry). Not pairwise: do not
 reintroduce an "A notifies B, B notifies A" assumption.
 
+A person may also set their own `email`. That only feeds the leaderboard: the
+email to an address ranks every person whose score that address receives, plus
+the person whose own `email` it is (marked "you"). Hidden when that's fewer
+than two people.
+
 ## Scheduling
 
 Docker (current): supercronic runs `garmin-sleep-notify` every 5 min from
@@ -78,8 +89,9 @@ The schedule is `crontab` in the repo root, three lines (`30-55/5 4`, `*/5 5-13`
 the window edges are exact. supercronic skips a run if the previous one is
 still going.
 
-Each run processes only people not already fully notified today; a score that is
-not ready is logged and retried next run. Once every recipient for a person has
+Each run processes only people not already fully notified today, in two passes:
+fetch all of them, then send, so a leaderboard sees every score available in
+that run. A score that is not ready is logged and retried next run. Once every recipient for a person has
 been emailed, that person is skipped for the rest of the day. "Already sent
 today" state is `sent_state.json` (`STATE_FILE`), keyed by ISO date so it resets
 daily.

@@ -9,3 +9,15 @@ Total sleep: {{ total }}
 {% for st in stages %}
   {{ "%-6s %7s"|format(st.label, st.duration) }}
 {% endfor %}
+{% if leaderboard %}
+
+Leaderboard (average over the last 7 days):
+{% for row in leaderboard %}
+  {{ "%-3s %-14s %-12s %s"|format(
+      "%d." % row.rank if row.rank else "-",
+      row.name ~ (" (you)" if row.is_reader else ""),
+      "%d/100" % row.score if row.score is not none else "no data yet",
+      "wake " ~ row.wake if row.wake else ""
+  )|trim }}
+{% endfor %}
+{% endif %}

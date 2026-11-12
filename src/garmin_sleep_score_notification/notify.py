@@ -2,18 +2,30 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import configure_logging
 from .config import Config, ConfigError, Person
-from .email import EmailError, EmailSender, SleepEmail
+from .email import EmailError, EmailSender, SleepEmail, Standing
 from .garmin import GarminError, GarminFetcher, SleepSummary
 from .state import SentState
 from .uptime_kuma import UptimeKuma
 
 log = logging.getLogger("garmin_sleep")
+
+AVERAGE_DAYS = 7
+
+
+def average_clock(times: list[str]) -> str | None:
+    if not times:
+        return None
+    minutes = [int(t[:2]) * 60 + int(t[3:5]) for t in times]
+    mean = round(sum(minutes) / len(minutes))
+    return f"{mean // 60:02d}:{mean % 60:02d}"
 
 
 class Notifier:
@@ -40,20 +52,35 @@ class Notifier:
         self.state = SentState(self.config.state_file)
         day = self._today()
         log.info("run for %s, %d people", day, len(self.config.people))
-        unexpected = []
+        self.unexpected: list[str] = []
+        pending = []
         for person in self.config.people:
-            try:
-                self._process(person, day)
-            except Exception as exc:
-                log.exception("%s: unexpected error", person.name)
-                self.failures += 1
-                unexpected.append(f"{person.name}: {type(exc).__name__}")
+            if self.state.is_done(person.name, day, {r.email for r in person.recipients}):
+                log.info("%s: already sent today", person.name)
+            else:
+                pending.append(person)
+
+        self.fetched: dict[str, SleepSummary] = {}
+        for person in pending:
+            self._guard(person, lambda: self._fetch_into(person, day))
+        for person in pending:
+            if person.name in self.fetched:
+                self._guard(person, lambda: self._send(person, day, self.fetched[person.name]))
+
         self.state.save()
-        if unexpected:
-            self.monitor.down("unexpected error: " + ", ".join(unexpected))
+        if self.unexpected:
+            self.monitor.down("unexpected error: " + ", ".join(self.unexpected))
         elif not self.failures:
             self.monitor.up(self._status(day))
         return 1 if self.failures else 0
+
+    def _guard(self, person: Person, step: Callable[[], None]) -> None:
+        try:
+            step()
+        except Exception as exc:
+            log.exception("%s: unexpected error", person.name)
+            self.failures += 1
+            self.unexpected.append(f"{person.name}: {type(exc).__name__}")
 
     def _status(self, day: date) -> str:
         sent, waiting = [], []
@@ -65,19 +92,23 @@ class Notifier:
     def dry_run(self, preview_dir: Path | None = None) -> int:
         self.state = SentState(self.config.state_file)
         day = self._today()
+        self.fetched = {}
         for person in self.config.people:
-            summary = self._fetch(person, day)
+            self._fetch_into(person, day)
+        for person in self.config.people:
+            summary = self.fetched.get(person.name)
             if summary is None:
                 continue
-            email = self._email(person, day, summary)
-            recipients = ", ".join(r.name for r in person.recipients)
-            log.info("%s: would email [%s]: %s", person.name, recipients, email.subject)
-            if preview_dir:
-                self._write_preview(preview_dir, person.name, email)
+            for recipient in person.recipients:
+                email = self._email(person, day, summary, recipient.email)
+                log.info("%s: would email %s: %s", person.name, recipient.name, email.subject)
+                if preview_dir:
+                    self._write_preview(preview_dir, f"{person.name}-to-{recipient.name}", email)
         return 0
 
     @staticmethod
     def _write_preview(directory: Path, name: str, email: SleepEmail) -> None:
+        name = re.sub(r"[^A-Za-z0-9]+", "-", name).strip("-").lower()
         directory.mkdir(parents=True, exist_ok=True)
         html = email.html
         for a in email.attachments:
@@ -86,40 +117,51 @@ class Notifier:
             html = html.replace(f"cid:{a.content_id}", filename)
         (directory / f"{name}.html").write_text(html)
         (directory / f"{name}.txt").write_text(email.text)
-        log.info("%s: preview written to %s", name, directory / f"{name}.html")
+        log.info("preview written to %s", directory / f"{name}.html")
 
-    def _email(self, person: Person, day: date, summary: SleepSummary) -> SleepEmail:
+    def _email(self, person: Person, day: date, summary: SleepSummary, reader: str) -> SleepEmail:
         previous = self.state.score(person.name, day - timedelta(days=1))
-        return SleepEmail(person.name, day, summary, previous)
+        return SleepEmail(person.name, day, summary, previous, self._leaderboard(day, reader))
 
-    def _fetch(self, person: Person, day: date) -> SleepSummary | None:
+    def _leaderboard(self, day: date, reader: str) -> list[Standing]:
+        return [
+            self._standing(p, day, p.email.lower() == reader.lower())
+            for p in self.config.people
+            if p.is_sent_to(reader) or (p.email and p.email.lower() == reader.lower())
+        ]
+
+    def _standing(self, person: Person, day: date, is_reader: bool) -> Standing:
+        summary = self.fetched.get(person.name)
+        today = summary.as_record() if summary else self.state.record(person.name, day)
+        earlier = [self.state.record(person.name, day - timedelta(days=n)) for n in range(1, AVERAGE_DAYS)]
+        week = [today, *earlier]
+        scores = [r["score"] for r in week if isinstance(r.get("score"), int)]
+        wakes = [r["wake"] for r in week if r.get("wake")]
+        avg_score = round(sum(scores) / len(scores)) if scores else None
+        return Standing(person.name, avg_score, average_clock(wakes), is_reader)
+
+    def _fetch_into(self, person: Person, day: date) -> None:
         try:
             summary = GarminFetcher(person.token_store).fetch(day)
         except GarminError as exc:
             log.error("%s: %s", person.name, exc)
             self.failures += 1
-            return None
+            return
         if summary is None:
             log.info("%s: no sleep score yet, will retry next run", person.name)
-        return summary
-
-    def _process(self, person: Person, day: date) -> None:
-        recipients = {r.email for r in person.recipients}
-        if self.state.is_done(person.name, day, recipients):
-            log.info("%s: already sent today", person.name)
             return
+        self.fetched[person.name] = summary
 
-        summary = self._fetch(person, day)
-        if summary is None:
-            return
-
-        email = self._email(person, day, summary)
-        attachments = email.attachments
+    def _send(self, person: Person, day: date, summary: SleepSummary) -> None:
         record = summary.as_record()
         already = self.state.sent_recipients(person.name, day)
+        attachments = None
         for recipient in person.recipients:
             if recipient.email in already:
                 continue
+            email = self._email(person, day, summary, recipient.email)
+            if attachments is None:
+                attachments = email.attachments
             try:
                 self.sender.send(
                     recipient.email, email.subject, email.text, email.html, attachments
