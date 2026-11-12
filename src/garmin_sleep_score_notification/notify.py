@@ -48,21 +48,19 @@ class Notifier:
                 log.exception("%s: unexpected error", person.name)
                 self.failures += 1
                 unexpected.append(f"{person.name}: {type(exc).__name__}")
+        self.state.save()
         if unexpected:
             self.monitor.down("unexpected error: " + ", ".join(unexpected))
-        else:
-            self._heartbeat(day)
-        self.state.save()
+        elif not self.failures:
+            self.monitor.up(self._status(day))
         return 1 if self.failures else 0
 
-    def _heartbeat(self, day: date) -> None:
-        people = self.config.people
-        if self.state.heartbeat_pushed(day):
-            return
-        if not all(self.state.is_done(p.name, day, {r.email for r in p.recipients}) for p in people):
-            return
-        if self.monitor.up(f"{day}: sent {', '.join(p.name for p in people)}"):
-            self.state.mark_heartbeat(day)
+    def _status(self, day: date) -> str:
+        sent, waiting = [], []
+        for person in self.config.people:
+            done = self.state.is_done(person.name, day, {r.email for r in person.recipients})
+            (sent if done else waiting).append(person.name)
+        return f"ok, sent: {', '.join(sent) or '-'}, waiting: {', '.join(waiting) or '-'}"
 
     def dry_run(self) -> int:
         day = self._today()

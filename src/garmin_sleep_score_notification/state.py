@@ -5,7 +5,6 @@ from datetime import date, timedelta
 from pathlib import Path
 
 RETENTION_DAYS = 7
-HEARTBEAT_KEY = "_uptime_kuma_up"
 
 
 class SentState:
@@ -30,12 +29,6 @@ class SentState:
         record.update(summary)
         if recipient not in record["recipients"]:
             record["recipients"].append(recipient)
-
-    def heartbeat_pushed(self, day: date) -> bool:
-        return bool(self._day(day).get(HEARTBEAT_KEY))
-
-    def mark_heartbeat(self, day: date) -> None:
-        self._day(day)[HEARTBEAT_KEY] = True
 
     def save(self) -> None:
         cutoff = (date.today() - timedelta(days=RETENTION_DAYS)).isoformat()
