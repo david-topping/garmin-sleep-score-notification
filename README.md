@@ -11,7 +11,7 @@ session after one-time setup. Optional Uptime Kuma push monitoring.
 - **Token auth:** `garmin-auth-setup` does an interactive login once per person
   and caches an OAuth token (`garth`) that auto-refreshes for ~1 year. The
   scheduled job never re-authenticates.
-- **Retry until sent:** supercronic runs every 5 min from 06:00 to 13:00
+- **Retry until sent:** supercronic runs every 5 min from 04:30 to 14:00
   (`TZ`, default Europe/London). Each run
   emails anyone whose score is available and not yet sent today; if the watch
   hasn't synced, it logs and retries next run. State (`state/sent_state.json`,
