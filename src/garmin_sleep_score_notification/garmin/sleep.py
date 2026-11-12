@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 _LEVEL = {0.0: "Deep", 1.0: "Light", 2.0: "REM", 3.0: "Awake"}
 
 
-def _qualifier(score: int) -> str:
+def qualifier_for(score: int) -> str:
     if score >= 90:
         return "Excellent"
     if score >= 80:
@@ -40,6 +40,7 @@ class SleepSummary:
     awake: timedelta
     timeline: tuple[StageSpan, ...] = field(default_factory=tuple)
     start_local: datetime | None = None
+    wake_local: datetime | None = None
 
     @classmethod
     def from_payload(cls, payload: object) -> SleepSummary | None:
@@ -50,7 +51,7 @@ class SleepSummary:
         if not isinstance(score, (int, float)):
             return None
         score = int(score)
-        qualifier = str(overall.get("qualifierKey") or "").title() or _qualifier(score)
+        qualifier = str(overall.get("qualifierKey") or "").title() or qualifier_for(score)
         timeline, start_local = _parse_timeline(payload.get("sleepLevels"), dto)
         return cls(
             score,
@@ -61,6 +62,7 @@ class SleepSummary:
             timedelta(seconds=dto.get("awakeSleepSeconds") or 0),
             timeline,
             start_local,
+            _local_clock(dto.get("sleepEndTimestampLocal")),
         )
 
     @property
@@ -77,7 +79,17 @@ class SleepSummary:
 
     def as_record(self) -> dict:
         mins = {s.label.lower(): round(s.duration.total_seconds() / 60) for s in self.breakdown()}
-        return {"score": self.score, "qualifier": self.qualifier, "stages_min": mins}
+        record = {"score": self.score, "qualifier": self.qualifier, "stages_min": mins}
+        if self.wake_local:
+            record["wake"] = f"{self.wake_local:%H:%M}"
+        return record
+
+
+def _local_clock(ms: object) -> datetime | None:
+    # Garmin's *Local timestamps are local wall-clock time encoded as if it were UTC.
+    if not isinstance(ms, (int, float)):
+        return None
+    return datetime(1970, 1, 1) + timedelta(milliseconds=ms)
 
 
 def _dt(value: object) -> datetime:

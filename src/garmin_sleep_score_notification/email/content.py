@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 from mjml import mjml2html
 
-from ..garmin import SleepSummary
+from ..garmin import SleepSummary, qualifier_for
 from .hypnogram import Hypnogram
 
 STAGE_COLOUR = {"Deep": "#2f4b7c", "Light": "#5b8def", "REM": "#7b61ff", "Awake": "#e8a33d"}
@@ -40,6 +41,14 @@ class Attachment:
     content_id: str
 
 
+@dataclass(frozen=True)
+class Standing:
+    name: str
+    avg_score: int | None
+    avg_wake: str | None
+    is_reader: bool = False
+
+
 class SleepEmail:
     def __init__(
         self,
@@ -47,11 +56,13 @@ class SleepEmail:
         day: date,
         summary: SleepSummary,
         previous_score: int | None = None,
+        leaderboard: Sequence[Standing] = (),
     ) -> None:
         self.person = person.title()
         self.day = day
         self.summary = summary
         self.previous_score = previous_score
+        self.leaderboard = leaderboard
 
     @property
     def subject(self) -> str:
@@ -84,6 +95,23 @@ class SleepEmail:
             return f"▼ {-diff} vs yesterday", QUALIFIER_COLOUR["Poor"]
         return "Same as yesterday", "#7b8394"
 
+    def _leaderboard(self) -> list[dict]:
+        if len(self.leaderboard) < 2:
+            return []
+        scored = sorted((s for s in self.leaderboard if s.avg_score is not None), key=lambda s: -s.avg_score)
+        unscored = [s for s in self.leaderboard if s.avg_score is None]
+        return [
+            {
+                "rank": rank if s.avg_score is not None else None,
+                "name": s.name.title(),
+                "score": s.avg_score,
+                "colour": QUALIFIER_COLOUR[qualifier_for(s.avg_score)] if s.avg_score is not None else None,
+                "wake": s.avg_wake,
+                "is_reader": s.is_reader,
+            }
+            for rank, s in enumerate(scored + unscored, start=1)
+        ]
+
     def _context(self) -> dict:
         s = self.summary
         stages = [
@@ -102,6 +130,7 @@ class SleepEmail:
             "qualifier": s.qualifier,
             "colour": QUALIFIER_COLOUR.get(s.qualifier, "#3d4350"),
             "delta": self._delta(),
+            "leaderboard": self._leaderboard(),
             "stages": stages,
             "total": hm(s.asleep),
             "timeline_cid": TIMELINE_CID if s.timeline else None,

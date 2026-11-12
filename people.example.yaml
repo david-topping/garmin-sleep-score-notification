@@ -6,17 +6,22 @@
 # Fan-out is free: many recipients per person, the same address under many people,
 # receive-only people are just a recipient with no people entry of their own.
 #
+# email is optional: the person's own address. It puts them on the leaderboard
+# in the emails they receive, next to the people whose scores they get.
+#
 # token_store is optional: it defaults to $GARMIN_TOKENS_DIR/<name>
 # (~/.garmin_tokens/<name> locally, /data/garmin_tokens/<name> in Docker).
 
 people:
   - name: wallace
+    email: wallace@westwallaby.co.uk
     token_store: ~/.garmin_tokens/wallace
     recipients:
       - { label: Wallace, email: wallace@westwallaby.co.uk }
       - { label: Gromit, email: gromit@westwallaby.co.uk }
 
   - name: gromit
+    email: gromit@westwallaby.co.uk
     recipients:
       - { label: Gromit, email: gromit@westwallaby.co.uk }
       - { label: Feathers McGraw, email: feathers@penguin.co.uk }

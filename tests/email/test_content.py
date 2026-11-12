@@ -3,14 +3,21 @@ from datetime import date
 
 import pytest
 
-from garmin_sleep_score_notification.email import SleepEmail
+from garmin_sleep_score_notification.email import SleepEmail, Standing
 
 DAY = date(2026, 9, 2)
 
 
+BOARD = (
+    Standing("wallace", 84, "06:32"),
+    Standing("gromit", 91, "05:48", is_reader=True),
+    Standing("shaun", None, None),
+)
+
+
 @pytest.fixture
 def email(summary):
-    return SleepEmail("wallace", DAY, summary, previous_score=78)
+    return SleepEmail("wallace", DAY, summary, previous_score=78, leaderboard=BOARD)
 
 
 @pytest.fixture
@@ -78,3 +85,29 @@ def test_timeline_is_a_cid_image_with_matching_attachment(email):
 def test_no_timeline_means_no_image_and_no_attachment(plain_email):
     assert "<img" not in plain_email.html
     assert plain_email.attachments == []
+
+
+def test_leaderboard_ranks_by_average_score_with_no_data_last(email):
+    board = email.text.split("Leaderboard")[1]
+    assert board.index("Gromit (you)") < board.index("Wallace") < board.index("Shaun")
+    assert "1.  Gromit (you)   91/100" in board and "wake 05:48" in board
+    assert "-   Shaun          no data yet" in board
+    html = email.html[email.html.index("Leaderboard"):]
+    assert html.index("Gromit") < html.index("Wallace") < html.index("Shaun")
+
+
+def test_leaderboard_is_last(email):
+    assert email.html.index("Total sleep") < email.html.index("Leaderboard")
+    assert email.text.index("Awake") < email.text.index("Leaderboard")
+
+
+def test_single_row_leaderboard_is_hidden(summary):
+    email = SleepEmail("wallace", DAY, summary, leaderboard=BOARD[:1])
+    assert "Leaderboard" not in email.text
+    assert "Leaderboard" not in email.html
+
+
+def test_leaderboard_names_are_escaped(summary):
+    board = (Standing("<i>feathers</i>", 50, None), Standing("wallace", 84, None))
+    html = SleepEmail("wallace", DAY, summary, leaderboard=board).html
+    assert "<i>feathers" not in html.lower()

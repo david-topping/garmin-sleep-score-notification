@@ -33,6 +33,10 @@ class Person:
     name: str
     token_store: Path
     recipients: tuple[Recipient, ...]
+    email: str = ""
+
+    def is_sent_to(self, email: str) -> bool:
+        return any(r.email.lower() == email.lower() for r in self.recipients)
 
     @classmethod
     def from_dict(cls, d: dict, tokens_dir: Path) -> Person:
@@ -42,6 +46,7 @@ class Person:
             name,
             token_store.expanduser(),
             tuple(Recipient.from_dict(r) for r in d["recipients"]),
+            str(d.get("email", "")).strip(),
         )
 
 

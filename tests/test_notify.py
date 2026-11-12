@@ -1,5 +1,6 @@
+import dataclasses
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -15,8 +16,8 @@ GROMIT = "gromit@westwallaby.co.uk"
 TODAY = date(2026, 9, 2)
 
 
-def person(name, *emails):
-    return Person(name, Path(f"/tokens/{name}"), tuple(Recipient(e) for e in emails))
+def person(name, *emails, own=""):
+    return Person(name, Path(f"/tokens/{name}"), tuple(Recipient(e) for e in emails), own)
 
 
 @pytest.fixture
@@ -182,11 +183,11 @@ def test_preview_writes_viewable_files(config, fetch, summary, tmp_path):
     out = tmp_path / "preview"
     notify.Notifier(config(person("wallace", WALLACE)), FakeSender()).dry_run(out)
 
-    html = (out / "wallace.html").read_text()
-    assert 'src="wallace-sleep-timeline.png"' in html
+    html = (out / "wallace-to-wallace-westwallaby-co-uk.html").read_text()
+    assert 'src="wallace-to-wallace-westwallaby-co-uk-sleep-timeline.png"' in html
     assert "cid:" not in html
-    assert (out / "wallace-sleep-timeline.png").read_bytes()[:4] == b"\x89PNG"
-    assert "Score: 84/100 (Good)" in (out / "wallace.txt").read_text()
+    assert (out / "wallace-to-wallace-westwallaby-co-uk-sleep-timeline.png").read_bytes()[:4] == b"\x89PNG"
+    assert "Score: 84/100 (Good)" in (out / "wallace-to-wallace-westwallaby-co-uk.txt").read_text()
     assert not (tmp_path / "state.json").exists()
 
 
@@ -264,3 +265,84 @@ def test_unreadable_state_pushes_down(config, fetch, make_summary, tmp_path):
 
 def test_cli_config_error_exits_2(tmp_path):
     assert notify.main(["--people-file", str(tmp_path / "missing.yaml")]) == 2
+
+
+def woke(summary, hhmm):
+    h, m = map(int, hhmm.split(":"))
+    return dataclasses.replace(summary, wake_local=datetime(2026, 9, 2, h, m))
+
+
+def leaderboard_text(email):
+    return email["text"].split("Leaderboard")[1]
+
+
+def history(tmp_path, name, *days):
+    state = SentState(tmp_path / "state.json")
+    for days_ago, score, wake in days:
+        state.mark(name, TODAY - timedelta(days=days_ago), {"score": score, "wake": wake}, "shaun@westwallaby.co.uk")
+    state.save()
+
+
+def test_leaderboard_has_the_reader_and_who_they_receive(config, fetch, make_summary):
+    scores = {"wallace": woke(make_summary(88), "06:30"), "gromit": woke(make_summary(91), "05:50")}
+    fetch(lambda name, day: scores[name])
+    cfg = config(person("wallace", GROMIT, own=WALLACE), person("gromit", WALLACE, own=GROMIT))
+
+    _, sender, _ = run(cfg)
+
+    to_wallace = next(e for e in sender.emails if e["to"] == WALLACE)
+    board = leaderboard_text(to_wallace)
+    assert "1.  Gromit" in board and "91/100" in board and "wake 05:50" in board
+    assert "2.  Wallace (you)" in board and "88/100" in board
+
+
+def test_leaderboard_averages_the_last_seven_days(config, fetch, make_summary, tmp_path):
+    history(tmp_path, "gromit", (1, 80, "07:00"), (6, 70, "06:00"), (7, 10, "03:00"))
+    scores = {"wallace": make_summary(85), "gromit": woke(make_summary(90), "06:30")}
+    fetch(lambda name, day: scores[name])
+    cfg = config(person("wallace", GROMIT, own=WALLACE), person("gromit", WALLACE, own=GROMIT))
+
+    _, sender, _ = run(cfg)
+
+    to_wallace = next(e for e in sender.emails if e["to"] == WALLACE)
+    board = leaderboard_text(to_wallace)
+    # today 90/06:30, 1 day ago 80/07:00, 6 days ago 70/06:00; the 7-days-ago night is excluded
+    assert "Gromit         80/100       wake 06:30" in board
+
+
+def test_not_synced_yet_still_shows_the_earlier_average(config, fetch, make_summary, tmp_path):
+    history(tmp_path, "gromit", (1, 77, "05:45"), (2, 79, "05:55"))
+    fetch(lambda name, day: make_summary(80) if name == "wallace" else None)
+    cfg = config(person("wallace", GROMIT, own=WALLACE), person("gromit", WALLACE, own=GROMIT))
+
+    _, sender, _ = run(cfg)
+
+    (email,) = sender.emails
+    assert email["to"] == GROMIT
+    board = leaderboard_text(email)
+    assert "1.  Wallace        80/100" in board
+    assert "2.  Gromit (you)   78/100       wake 05:50" in board
+
+
+def test_leaderboard_lists_people_with_no_data_last(config, fetch, make_summary):
+    fetch(lambda name, day: make_summary(80) if name == "wallace" else None)
+    cfg = config(person("wallace", GROMIT, own=WALLACE), person("gromit", WALLACE, own=GROMIT))
+
+    _, sender, _ = run(cfg)
+
+    board = leaderboard_text(sender.emails[0])
+    assert "-   Gromit (you)   no data yet" in board
+
+
+def test_no_leaderboard_with_a_single_row(config, fetch, make_summary):
+    fetch(lambda name, day: make_summary(82))
+    _, sender, _ = run(config(person("wallace", GROMIT)))
+    assert "Leaderboard" not in sender.emails[0]["text"]
+
+
+@pytest.mark.parametrize(
+    ("times", "expected"),
+    [([], None), (["06:30"], "06:30"), (["06:00", "07:00"], "06:30"), (["06:59", "07:00", "07:02"], "07:00")],
+)
+def test_average_clock(times, expected):
+    assert notify.average_clock(times) == expected

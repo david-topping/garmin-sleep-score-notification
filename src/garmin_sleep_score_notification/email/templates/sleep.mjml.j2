@@ -73,6 +73,28 @@
               <td colspan="2" style="padding:16px 0 0;border-top:1px solid #e6e9ee;text-align:right;color:#2b303b;font-weight:800;font-size:16px;">{{ total }}</td>
             </tr>
           </mj-table>
+
+          {% if leaderboard %}
+          <mj-divider border-width="1px" border-color="#eef0f4" padding="24px 0 6px" />
+          <mj-table padding="0" font-size="14px" color="#4a5160" cellpadding="0" cellspacing="0">
+            <tr>
+              <td colspan="4" style="padding:0;font-size:12px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:#7b8394;">Leaderboard</td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding:2px 0 4px;font-size:11px;font-weight:600;color:#9aa0ac;">Average over the last 7 days</td>
+              <td style="padding:2px 0 4px;text-align:right;font-size:11px;font-weight:600;color:#9aa0ac;">Score</td>
+              <td style="padding:2px 0 4px;text-align:right;font-size:11px;font-weight:600;color:#9aa0ac;">Wake</td>
+            </tr>
+            {% for row in leaderboard %}
+            <tr>
+              <td style="padding:9px 0;width:26px;color:#9aa0ac;font-weight:700;">{{ row.rank or "&ndash;"|safe }}</td>
+              <td style="padding:9px 0;color:#2b303b;{% if row.is_reader %}font-weight:700;{% endif %}">{{ row.name }}{% if row.is_reader %} <span style="font-size:12px;font-weight:600;color:#9aa0ac;">you</span>{% endif %}</td>
+              <td style="padding:9px 0;text-align:right;font-size:18px;font-weight:800;width:48px;color:{{ row.colour or "#9aa0ac" }};">{{ row.score if row.score is not none else "&mdash;"|safe }}</td>
+              <td style="padding:9px 0 9px 12px;text-align:right;color:#4a5160;width:64px;font-variant-numeric:tabular-nums;">{{ row.wake or "&mdash;"|safe }}</td>
+            </tr>
+            {% endfor %}
+          </mj-table>
+          {% endif %}
         </mj-column>
       </mj-section>
     </mj-wrapper>

@@ -94,3 +94,24 @@ def test_uptime_kuma_url_is_optional(tmp_path, monkeypatch):
 
     monkeypatch.setenv("UPTIME_KUMA_PUSH_URL", "https://status.westwallaby.co.uk/api/push/x")
     assert Config.load(path).uptime_kuma_push_url == "https://status.westwallaby.co.uk/api/push/x"
+
+
+def test_person_email_is_optional_and_recipient_match_ignores_case(tmp_path):
+    path = write(
+        tmp_path,
+        """
+        people:
+          - name: wallace
+            email: wallace@westwallaby.co.uk
+            recipients:
+              - email: Gromit@WestWallaby.co.uk
+          - name: gromit
+            recipients:
+              - email: wallace@westwallaby.co.uk
+        """,
+    )
+    wallace, gromit = Config.load(path).people
+    assert wallace.email == "wallace@westwallaby.co.uk"
+    assert gromit.email == ""
+    assert wallace.is_sent_to("gromit@westwallaby.co.uk")
+    assert not wallace.is_sent_to("feathers@penguin.co.uk")
