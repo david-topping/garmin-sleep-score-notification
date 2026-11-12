@@ -5,12 +5,12 @@ from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .garmin import StageSpan
+from ..garmin import StageSpan
 
 _ORDER = ("Awake", "REM", "Light", "Deep")  # top to bottom, Garmin's order
 _S = 2  # supersample for crisp rendering on retina clients
-_W, _H = 404 * _S, 150 * _S
-_PAD_L, _PAD_R, _PAD_T, _PAD_B = 44 * _S, 4 * _S, 8 * _S, 20 * _S
+_W, _H = 448 * _S, 150 * _S
+_PAD_L, _PAD_R, _PAD_T, _PAD_B = 16 * _S, 16 * _S, 6 * _S, 28 * _S
 _GRID, _STEP, _LABEL = "#eceef2", "#aeb4c0", "#7b8394"
 
 
@@ -35,7 +35,7 @@ class Hypnogram:
 
         img = Image.new("RGB", (_W, _H), "#ffffff")
         d = ImageDraw.Draw(img)
-        font = ImageFont.load_default(9 * _S)
+        font = ImageFont.load_default(15 * _S)
         plot_h = _H - _PAD_T - _PAD_B
         row_h = plot_h / len(_ORDER)
 
@@ -45,13 +45,10 @@ class Hypnogram:
         def mid(label: str) -> float:
             return _PAD_T + (_ORDER.index(label) + 0.5) * row_h
 
-        for label in _ORDER:
-            d.text((3 * _S, mid(label)), label, font=font, fill=_LABEL, anchor="lm")
-
         for offset, text in self._ticks(total):
             tx = x(offset)
             d.line((tx, _PAD_T, tx, _PAD_T + plot_h), fill=_GRID, width=_S)
-            d.text((tx, _PAD_T + plot_h + 3 * _S), text, font=font, fill=_LABEL, anchor="mt")
+            d.text((tx, _PAD_T + plot_h + 5 * _S), text, font=font, fill=_LABEL, anchor="mt")
 
         for a, b in zip(self.spans, self.spans[1:]):
             bx = x(b.start)

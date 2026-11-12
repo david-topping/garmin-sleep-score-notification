@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 import requests
 
-from .email_content import Attachment
+from .content import Attachment
 
 
 class EmailError(Exception):

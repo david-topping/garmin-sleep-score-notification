@@ -1,0 +1,11 @@
+{{ person }}'s Garmin sleep for {{ day.strftime("%A %d %B") }}
+
+Score: {{ score }}/100 ({{ qualifier }})
+{% if delta %}
+{{ delta[0] }}
+{% endif %}
+Total sleep: {{ total }}
+
+{% for st in stages %}
+  {{ "%-6s %7s"|format(st.label, st.duration) }}
+{% endfor %}

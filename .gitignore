@@ -25,3 +25,6 @@ state/
 
 # Docker bind-mounted state (people.yaml, Garmin tokens, sent-today state)
 data/
+
+.coverage
+out/

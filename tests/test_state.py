@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from garmin_sleep_score_notification.state import SentState
 
 DAY = date(2026, 9, 2)
@@ -7,8 +9,12 @@ W = "wallace@westwallaby.co.uk"
 G = "gromit@westwallaby.co.uk"
 
 
-def test_partial_then_complete(tmp_path):
-    path = tmp_path / "s.json"
+@pytest.fixture
+def path(tmp_path):
+    return tmp_path / "sent_state.json"
+
+
+def test_partial_then_complete(path):
     required = {W, G}
 
     state = SentState(path)
@@ -23,22 +29,32 @@ def test_partial_then_complete(tmp_path):
     assert reloaded.is_done("wallace", DAY, required)
 
 
-def test_resets_next_day(tmp_path):
-    state = SentState(tmp_path / "s.json")
+def test_no_recipients_is_never_done(path):
+    assert not SentState(path).is_done("wallace", DAY, set())
+
+
+def test_resets_next_day(path):
+    state = SentState(path)
     state.mark("wallace", DAY, {"score": 82}, W)
     assert not state.is_done("wallace", date(2026, 9, 3), {W})
 
 
-def test_prunes_old_days(tmp_path):
-    path = tmp_path / "s.json"
+@pytest.mark.parametrize(("day", "kept"), [(date(2026, 8, 26), True), (date(2026, 8, 25), False)])
+def test_keeps_seven_days(path, day, kept):
     state = SentState(path)
-    state.mark("wallace", date(2020, 1, 1), {"score": 50}, W)
-    state.mark("wallace", DAY, {"score": 82}, W)
+    state.mark("wallace", day, {"score": 50}, W)
     state.save()
-    assert SentState(path).sent_recipients("wallace", date(2020, 1, 1)) == set()
+    assert (SentState(path).sent_recipients("wallace", day) == {W}) is kept
 
 
-def test_corrupt_file(tmp_path):
-    path = tmp_path / "s.json"
+def test_score_of_a_day(path):
+    state = SentState(path)
+    state.mark("wallace", DAY, {"score": 82}, W)
+    assert state.score("wallace", DAY) == 82
+    assert state.score("gromit", DAY) is None
+    assert state.score("wallace", date(2026, 9, 1)) is None
+
+
+def test_corrupt_file(path):
     path.write_text("{ not json")
     assert SentState(path).sent_recipients("wallace", DAY) == set()

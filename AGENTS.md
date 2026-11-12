@@ -10,21 +10,51 @@ phone dependency. The old GCP VM deployment is deprecated.
 
 ## Architecture
 
-`src/garmin_sleep_score_notification/` holds one class per concern, each
-unit-tested in `tests/`:
+`src/garmin_sleep_score_notification/` is packaged by feature, one class per
+concern:
 
-| Module         | Class(es)                       | Responsibility |
-| -------------- | ------------------------------- | -------------- |
-| `config.py`    | `Config`, `Person`, `Recipient` | Load `people.yaml` and `.env` into frozen dataclasses. `Config.load()`. |
-| `garmin.py`    | `GarminFetcher`, `SleepSummary`, `StageSpan` | Token-only login and fetch. `SleepSummary` is pure sleep data (score, qualifier, stage breakdown, and a `timeline` of `StageSpan`s parsed from `sleepLevels`), no presentation; `from_payload()` returns `None` when not synced yet; raises `GarminError` on auth/network failure. |
-| `email_content.py` | `SleepEmail`, `Attachment`  | Renders `subject`, `text`, `html`, and `attachments` from a `SleepSummary`, and owns all presentation (stage/qualifier colours, `hm()` duration formatting). The card makes no external requests: the HTML is score plus a stage-duration table, and the overnight stage timeline is a PNG embedded via `cid:` so it renders in every client including Gmail. `attachments` is empty when the payload carried no `sleepLevels`. |
-| `hypnogram.py` | `Hypnogram`                     | Pillow renderer for the sleep-stage timeline: `StageSpan`s plus stage colours in, PNG bytes out (`None` when empty). No external requests. |
-| `mailer.py`    | `EmailSender`                   | One Resend API send (`text`, `html`, and optional inline `attachments`); raises `EmailError`. |
-| `state.py`     | `SentState`                     | JSON file: per date and person, `score`, `stages_min`, and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
-| `uptime_kuma.py` | `UptimeKuma`                  | Optional push monitor client. No-op without `UPTIME_KUMA_PUSH_URL`; 10 s timeout; never raises; never logs the URL (it embeds the token). |
-| `notify.py`    | `Notifier`                      | Orchestration, Uptime Kuma up/down pushes, plus the `garmin-sleep-notify` CLI (`--dry-run`, `--people-file`). |
-| `auth_setup.py`| `AuthSetup`                     | Interactive one-time login and token dump (`garmin-auth-setup <name>`). |
-| `__init__.py`  | (none)                          | `configure_logging()` only. |
+| Module | Class(es) | Responsibility |
+| --- | --- | --- |
+| `config.py` | `Config`, `Person`, `Recipient` | Load `people.yaml` and `.env` into frozen dataclasses. `Config.load()`. |
+| `garmin/sleep.py` | `SleepSummary`, `Stage`, `StageSpan` | Pure sleep data (score, qualifier, stage breakdown, and a `timeline` of `StageSpan`s parsed from `sleepLevels`), no presentation. `from_payload()` returns `None` when not synced yet. |
+| `garmin/fetcher.py` | `GarminFetcher`, `GarminError` | Token-only login and fetch; raises `GarminError` on auth/network failure. |
+| `garmin/auth_setup.py` | `AuthSetup` | Interactive one-time login and token dump (`garmin-auth-setup <name>`). |
+| `email/content.py` | `SleepEmail`, `Attachment` | Renders `subject`, `text`, `html` and `attachments` from a `SleepSummary` plus yesterday's score, and owns presentation data (stage/qualifier colours, `hm()`). |
+| `email/templates/` | (none) | `sleep.mjml.j2` (Jinja2, then MJML via `mjml-python`) for the HTML part, `sleep.txt.j2` for the plain-text part. |
+| `email/hypnogram.py` | `Hypnogram` | Pillow renderer for the sleep-stage timeline: `StageSpan`s plus stage colours in, PNG bytes out (`None` when empty). |
+| `email/sender.py` | `EmailSender`, `EmailError` | One Resend API send (`text`, `html`, and optional inline `attachments`). |
+| `state.py` | `SentState` | JSON file: per date and person, `score`, `stages_min`, and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
+| `uptime_kuma.py` | `UptimeKuma` | Optional push monitor client. No-op without `UPTIME_KUMA_PUSH_URL`; 10 s timeout; never raises; never logs the URL (it embeds the token). |
+| `notify.py` | `Notifier` | Orchestration, Uptime Kuma up/down pushes, plus the `garmin-sleep-notify` CLI (`--dry-run`, `--preview DIR`, `--people-file`). |
+| `__init__.py` | (none) | `configure_logging()` only. |
+
+`garmin/` and `email/` re-export their public classes from `__init__.py`.
+
+### Email
+
+The HTML is an MJML template rendered by `mjml-python` (Rust, no Node), so it is
+responsive, Outlook-safe table markup with inlined styles. Email clients run no
+JavaScript and only some CSS: edit `sleep.mjml.j2`, not raw HTML. Rules:
+
+- No external requests. `mjml2html(..., fonts={})` stops MJML adding a Google
+  Fonts link; no remote images. The stage timeline is a PNG embedded via
+  `cid:` so it renders everywhere, including Gmail. `attachments` is empty when
+  the payload carried no `sleepLevels`.
+- Light only (`color-scheme: light only`): the PNG has a white background.
+- "vs yesterday" comes from yesterday's `score` in `sent_state.json`, omitted
+  when there is none.
+- Iterate on the design with `garmin-sleep-notify --preview out/` (real fetch,
+  writes `<name>.html`, `.txt` and the PNG, sends and records nothing), then
+  `uv run pytest --snapshot-update` and review the snapshot diff.
+
+### Tests
+
+pytest, packaged like `src/` (`tests/garmin/`, `tests/email/`). Shared fixtures
+are in `tests/conftest.py`: time is frozen to 2026-09-02 07:15 Europe/London
+with `time-machine` for every test, and `summary` comes from
+`tests/fixtures/sleep_payload.json`, a realistic Garmin payload. HTTP is
+mocked with `responses`, the email HTML and text are `syrupy` snapshots
+(`tests/email/__snapshots__/`), and coverage is `uv run pytest --cov`.
 
 Adding a person or recipient is a `people.yaml` change, never code.
 
@@ -207,8 +237,10 @@ Kept for reference until the VM is shut down.
 ```bash
 uv sync
 uv run pytest                          # offline
+uv run pytest --cov                    # with coverage
 uv run garmin-auth-setup <name>        # real Garmin login
 uv run garmin-sleep-notify --dry-run   # real fetch, sends nothing, writes nothing
+uv run garmin-sleep-notify --preview out/  # dry run that also writes each email to out/
 uv run garmin-sleep-notify             # real job
 ```
 
