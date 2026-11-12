@@ -42,8 +42,9 @@ reintroduce an "A notifies B, B notifies A" assumption.
 ## Scheduling
 
 Docker (current): supercronic runs `garmin-sleep-notify` every 5 min from
-06:00 to 13:00 inclusive, in the container's `TZ` (default `Europe/London`).
-The schedule is `crontab` in the repo root, two lines (`*/5 6-12`, `0 13`) so
+04:30 to 14:00 inclusive, in the container's `TZ` (default `Europe/London`).
+The schedule is `crontab` in the repo root, three lines (`30-55/5 4`, `*/5 5-13`,
+`0 14`) so
 the window edges are exact. supercronic skips a run if the previous one is
 still going.
 
@@ -77,8 +78,8 @@ an email": someone not wearing their watch must never alert.
 - Push failures are logged as a warning and never fail the job.
 
 Kuma setup (davelab: LXC 104, `https://status.davelab.homes`): add a monitor of
-type **Push**, group "davelab", heartbeat interval **64800 s (18 h)**: the
-longest normal gap is 13:00 to 06:00 (17 h), so it alerts by about 07:00 if the
+type **Push**, group "davelab", heartbeat interval **55800 s (15.5 h)**: the
+longest normal gap is 14:00 to 04:30 (14.5 h), so it alerts by about 05:30 if the
 container stopped or every run failed. Copy the push URL into `.env`. Prefer the LAN
 address (`http://192.168.178.15:3001/api/push/<token>`) so pushes don't depend on
 Pi-hole or NPM; the `?status=up&msg=OK&ping=` suffix Kuma shows is fine, it is
