@@ -159,39 +159,35 @@ class FakeMonitor:
         return self.ok
 
 
-def test_pushes_up_once_when_everyone_is_sent(tmp_path, monkeypatch):
+def test_pushes_up_on_every_healthy_run(tmp_path, monkeypatch):
     set_fetch(monkeypatch, lambda ts, day: summary(82))
     cfg = config(tmp_path, person("wallace", WALLACE), person("gromit", GROMIT))
 
     monitor = FakeMonitor()
     notify.Notifier(cfg, FakeSender(), monitor).run()
-    ((status, msg),) = monitor.pushes
-    assert status == "up"
-    assert "wallace, gromit" in msg
+    assert monitor.pushes == [("up", "ok, sent: wallace, gromit, waiting: -")]
 
     monitor2 = FakeMonitor()
     notify.Notifier(cfg, FakeSender(), monitor2).run()
-    assert monitor2.pushes == []
+    assert monitor2.pushes == [("up", "ok, sent: wallace, gromit, waiting: -")]
 
 
-def test_no_up_push_while_someone_is_pending(tmp_path, monkeypatch):
+def test_missing_score_is_still_healthy(tmp_path, monkeypatch):
     set_fetch(monkeypatch, lambda ts, day: summary(82) if "wallace" in str(ts) else None)
     cfg = config(tmp_path, person("wallace", WALLACE), person("gromit", GROMIT))
 
     monitor = FakeMonitor()
-    notify.Notifier(cfg, FakeSender(), monitor).run()
-    assert monitor.pushes == []
+    assert notify.Notifier(cfg, FakeSender(), monitor).run() == 0
+    assert monitor.pushes == [("up", "ok, sent: wallace, waiting: gromit")]
 
 
-def test_failed_up_push_is_retried_next_run(tmp_path, monkeypatch):
+def test_send_failure_skips_up_push(tmp_path, monkeypatch):
     set_fetch(monkeypatch, lambda ts, day: summary(82))
     cfg = config(tmp_path, person("wallace", WALLACE))
 
-    notify.Notifier(cfg, FakeSender(), FakeMonitor(ok=False)).run()
-
     monitor = FakeMonitor()
-    notify.Notifier(cfg, FakeSender(), monitor).run()
-    assert [s for s, _ in monitor.pushes] == ["up"]
+    assert notify.Notifier(cfg, FakeSender(fail=[WALLACE]), monitor).run() == 1
+    assert monitor.pushes == []
 
 
 def test_unexpected_error_pushes_down_without_details(tmp_path, monkeypatch):
@@ -206,7 +202,7 @@ def test_unexpected_error_pushes_down_without_details(tmp_path, monkeypatch):
     assert monitor.pushes == [("down", "unexpected error: wallace: RuntimeError")]
 
 
-def test_garmin_error_is_retried_without_down_push(tmp_path, monkeypatch):
+def test_garmin_error_skips_all_pushes(tmp_path, monkeypatch):
     def fetch(ts, day):
         raise GarminError("expired")
 

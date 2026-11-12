@@ -20,7 +20,7 @@ unit-tested in `tests/`:
 | `email_content.py` | `SleepEmail`, `Attachment`  | Renders `subject`, `text`, `html`, and `attachments` from a `SleepSummary`, and owns all presentation (stage/qualifier colours, `hm()` duration formatting). The card makes no external requests: the HTML is score plus a stage-duration table, and the overnight stage timeline is a PNG embedded via `cid:` so it renders in every client including Gmail. `attachments` is empty when the payload carried no `sleepLevels`. |
 | `hypnogram.py` | `Hypnogram`                     | Pillow renderer for the sleep-stage timeline: `StageSpan`s plus stage colours in, PNG bytes out (`None` when empty). No external requests. |
 | `mailer.py`    | `EmailSender`                   | One Resend API send (`text`, `html`, and optional inline `attachments`); raises `EmailError`. |
-| `state.py`     | `SentState`                     | JSON file: per date and person, `score`, `stages_min`, and which recipient emails were notified, plus a per-date `_uptime_kuma_up` flag. Prunes entries older than 7 days on `save()`. |
+| `state.py`     | `SentState`                     | JSON file: per date and person, `score`, `stages_min`, and which recipient emails were notified. Prunes entries older than 7 days on `save()`. |
 | `uptime_kuma.py` | `UptimeKuma`                  | Optional push monitor client. No-op without `UPTIME_KUMA_PUSH_URL`; 10 s timeout; never raises; never logs the URL (it embeds the token). |
 | `notify.py`    | `Notifier`                      | Orchestration, Uptime Kuma up/down pushes, plus the `garmin-sleep-notify` CLI (`--dry-run`, `--people-file`). |
 | `auth_setup.py`| `AuthSetup`                     | Interactive one-time login and token dump (`garmin-auth-setup <name>`). |
@@ -62,22 +62,24 @@ three lines tagged `# garmin-sleep-notify`.
 Optional. Set `UPTIME_KUMA_PUSH_URL` to a Kuma **Push** monitor URL; unset means
 no pushes at all.
 
-- **Up:** once per day, on the first run where every configured person is fully
-  sent, push `status=up` with a message like `2026-11-11: sent wallace, gromit`.
-  Recorded in state, so later runs that day don't push again. A failed push is
-  retried next run.
+The monitor answers "is the script running and healthy", not "did everyone get
+an email": someone not wearing their watch must never alert.
+
+- **Up:** every run with no failures pushes `status=up`, with a message like
+  `ok, sent: David, waiting: Vicky`. "No sleep score yet" is not a failure, so
+  a person who never syncs keeps it green.
+- **No push:** a run with a `GarminError` or `EmailError` (expired tokens,
+  Garmin or Resend unreachable). One bad run is harmless; if every run fails,
+  the heartbeat runs out and Kuma alerts.
 - **Down:** an unexpected exception (a bug, unreadable state, disk error) pushes
   `status=down` with only the person and exception type, never the message, so
   no tokens or addresses leak.
-- `GarminError` and `EmailError` (expired tokens, Garmin not synced, Resend
-  hiccup) are expected and retried, so they don't push down. If they persist all
-  day, the missing up push trips the heartbeat instead.
 - Push failures are logged as a warning and never fail the job.
 
 Kuma setup (davelab: LXC 104, `https://status.davelab.homes`): add a monitor of
-type **Push**, group "davelab", heartbeat interval about a day: **90000 s
-(25 h)**, since the up push lands whenever the last watch syncs, which drifts
-from day to day. Copy the push URL into `.env`. Prefer the LAN
+type **Push**, group "davelab", heartbeat interval **64800 s (18 h)**: the
+longest normal gap is 13:00 to 06:00 (17 h), so it alerts by about 07:00 if the
+container stopped or every run failed. Copy the push URL into `.env`. Prefer the LAN
 address (`http://192.168.178.15:3001/api/push/<token>`) so pushes don't depend on
 Pi-hole or NPM; the `?status=up&msg=OK&ping=` suffix Kuma shows is fine, it is
 replaced.
