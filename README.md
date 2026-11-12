@@ -1,7 +1,8 @@
 # Garmin Sleep Score Notification
 
 Fetches each configured person's Garmin Connect sleep score every morning and
-emails it (score, qualifier, deep/light/REM/awake breakdown) to their recipients
+emails it (score, qualifier, change since yesterday, deep/light/REM/awake
+breakdown and an overnight stage timeline) to their recipients
 via [Resend](https://resend.com). Runs unattended as a Docker Compose stack
 (supercronic inside the container) on a homelab, with no phone or browser
 session after one-time setup. Optional Uptime Kuma push monitoring.
@@ -28,16 +29,14 @@ session after one-time setup. Optional Uptime Kuma push monitoring.
 | Module | Responsibility |
 |---|---|
 | `config.py` | Load `.env` and `people.yaml` into `Config` / `Person` / `Recipient` |
-| `garmin.py` | `GarminFetcher`, `SleepSummary` (pure sleep data: score, qualifier, stage breakdown, overnight stage timeline) |
-| `email_content.py` | `SleepEmail`: subject, plain-text, HTML, and the timeline PNG attachment; owns colours and formatting |
-| `hypnogram.py` | `Hypnogram`: Pillow renderer for the sleep-stage timeline PNG |
-| `mailer.py` | `EmailSender`: Resend API (text, HTML, inline attachments) |
+| `garmin/` | `SleepSummary` (pure sleep data), `GarminFetcher`, and the `garmin-auth-setup` CLI |
+| `email/` | `SleepEmail` (MJML + Jinja2 templates), the `Hypnogram` timeline PNG, and `EmailSender` (Resend) |
 | `state.py` | `SentState`: sent-today tracker, 7-day pruning |
 | `notify.py` | `Notifier`: orchestration, Uptime Kuma pushes, plus the `garmin-sleep-notify` CLI |
 | `uptime_kuma.py` | `UptimeKuma`: optional push monitor client |
-| `auth_setup.py` | `AuthSetup`: the `garmin-auth-setup` CLI |
 
-Each module is independently unit-tested (`uv run pytest`). uv-managed
+Each module is unit-tested offline with pytest (`uv run pytest`, `--cov` for
+coverage). uv-managed
 throughout; no pip or manual venv.
 
 ## Setup
@@ -54,6 +53,7 @@ uv run garmin-auth-setup <name>     # once per person: email, password, MFA
 ```bash
 uv run garmin-sleep-notify            # the job
 uv run garmin-sleep-notify --dry-run  # fetch and log, send nothing
+uv run garmin-sleep-notify --preview out/  # dry run that also writes each email to out/
 ```
 
 ## Deploy (Docker)

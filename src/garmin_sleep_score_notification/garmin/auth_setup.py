@@ -7,8 +7,8 @@ from pathlib import Path
 
 from garminconnect import Garmin
 
-from . import configure_logging
-from .config import Config, ConfigError
+from .. import configure_logging
+from ..config import Config, ConfigError
 
 
 class AuthSetup:

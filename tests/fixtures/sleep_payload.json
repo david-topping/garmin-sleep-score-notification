@@ -1,0 +1,106 @@
+{
+  "dailySleepDTO": {
+    "calendarDate": "2026-09-02",
+    "sleepStartTimestampGMT": 1788299220000,
+    "sleepEndTimestampGMT": 1788327120000,
+    "sleepStartTimestampLocal": 1788302820000,
+    "sleepEndTimestampLocal": 1788330720000,
+    "deepSleepSeconds": 6240,
+    "lightSleepSeconds": 14220,
+    "remSleepSeconds": 6540,
+    "awakeSleepSeconds": 900,
+    "sleepScores": {
+      "overall": {
+        "value": 84,
+        "qualifierKey": "GOOD"
+      }
+    }
+  },
+  "sleepLevels": [
+    {
+      "startGMT": "2026-09-01T21:47:00.0",
+      "endGMT": "2026-09-01T22:09:00.0",
+      "activityLevel": 1.0
+    },
+    {
+      "startGMT": "2026-09-01T22:09:00.0",
+      "endGMT": "2026-09-01T22:57:00.0",
+      "activityLevel": 0.0
+    },
+    {
+      "startGMT": "2026-09-01T22:57:00.0",
+      "endGMT": "2026-09-01T23:32:00.0",
+      "activityLevel": 1.0
+    },
+    {
+      "startGMT": "2026-09-01T23:32:00.0",
+      "endGMT": "2026-09-01T23:50:00.0",
+      "activityLevel": 2.0
+    },
+    {
+      "startGMT": "2026-09-01T23:50:00.0",
+      "endGMT": "2026-09-01T23:54:00.0",
+      "activityLevel": 3.0
+    },
+    {
+      "startGMT": "2026-09-01T23:54:00.0",
+      "endGMT": "2026-09-02T00:34:00.0",
+      "activityLevel": 1.0
+    },
+    {
+      "startGMT": "2026-09-02T00:34:00.0",
+      "endGMT": "2026-09-02T01:10:00.0",
+      "activityLevel": 0.0
+    },
+    {
+      "startGMT": "2026-09-02T01:10:00.0",
+      "endGMT": "2026-09-02T01:40:00.0",
+      "activityLevel": 1.0
+    },
+    {
+      "startGMT": "2026-09-02T01:40:00.0",
+      "endGMT": "2026-09-02T02:06:00.0",
+      "activityLevel": 2.0
+    },
+    {
+      "startGMT": "2026-09-02T02:06:00.0",
+      "endGMT": "2026-09-02T02:50:00.0",
+      "activityLevel": 1.0
+    },
+    {
+      "startGMT": "2026-09-02T02:50:00.0",
+      "endGMT": "2026-09-02T03:10:00.0",
+      "activityLevel": 0.0
+    },
+    {
+      "startGMT": "2026-09-02T03:10:00.0",
+      "endGMT": "2026-09-02T03:38:00.0",
+      "activityLevel": 1.0
+    },
+    {
+      "startGMT": "2026-09-02T03:38:00.0",
+      "endGMT": "2026-09-02T04:12:00.0",
+      "activityLevel": 2.0
+    },
+    {
+      "startGMT": "2026-09-02T04:12:00.0",
+      "endGMT": "2026-09-02T04:18:00.0",
+      "activityLevel": 3.0
+    },
+    {
+      "startGMT": "2026-09-02T04:18:00.0",
+      "endGMT": "2026-09-02T04:56:00.0",
+      "activityLevel": 1.0
+    },
+    {
+      "startGMT": "2026-09-02T04:56:00.0",
+      "endGMT": "2026-09-02T05:27:00.0",
+      "activityLevel": 2.0
+    },
+    {
+      "startGMT": "2026-09-02T05:27:00.0",
+      "endGMT": "2026-09-02T05:32:00.0",
+      "activityLevel": 3.0
+    }
+  ]
+}

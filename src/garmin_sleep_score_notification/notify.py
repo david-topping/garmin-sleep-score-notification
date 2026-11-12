@@ -3,13 +3,13 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from pathlib import Path
 
 from . import configure_logging
 from .config import Config, ConfigError, Person
-from .email_content import SleepEmail
+from .email import EmailError, EmailSender, SleepEmail
 from .garmin import GarminError, GarminFetcher, SleepSummary
-from .mailer import EmailError, EmailSender
 from .state import SentState
 from .uptime_kuma import UptimeKuma
 
@@ -62,16 +62,35 @@ class Notifier:
             (sent if done else waiting).append(person.name)
         return f"ok, sent: {', '.join(sent) or '-'}, waiting: {', '.join(waiting) or '-'}"
 
-    def dry_run(self) -> int:
+    def dry_run(self, preview_dir: Path | None = None) -> int:
+        self.state = SentState(self.config.state_file)
         day = self._today()
         for person in self.config.people:
             summary = self._fetch(person, day)
             if summary is None:
                 continue
-            email = SleepEmail(person.name, day, summary)
+            email = self._email(person, day, summary)
             recipients = ", ".join(r.name for r in person.recipients)
             log.info("%s: would email [%s]: %s", person.name, recipients, email.subject)
+            if preview_dir:
+                self._write_preview(preview_dir, person.name, email)
         return 0
+
+    @staticmethod
+    def _write_preview(directory: Path, name: str, email: SleepEmail) -> None:
+        directory.mkdir(parents=True, exist_ok=True)
+        html = email.html
+        for a in email.attachments:
+            filename = f"{name}-{a.filename}"
+            (directory / filename).write_bytes(a.content)
+            html = html.replace(f"cid:{a.content_id}", filename)
+        (directory / f"{name}.html").write_text(html)
+        (directory / f"{name}.txt").write_text(email.text)
+        log.info("%s: preview written to %s", name, directory / f"{name}.html")
+
+    def _email(self, person: Person, day: date, summary: SleepSummary) -> SleepEmail:
+        previous = self.state.score(person.name, day - timedelta(days=1))
+        return SleepEmail(person.name, day, summary, previous)
 
     def _fetch(self, person: Person, day: date) -> SleepSummary | None:
         try:
@@ -94,7 +113,7 @@ class Notifier:
         if summary is None:
             return
 
-        email = SleepEmail(person.name, day, summary)
+        email = self._email(person, day, summary)
         attachments = email.attachments
         record = summary.as_record()
         already = self.state.sent_recipients(person.name, day)
@@ -129,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="garmin-sleep-notify")
     parser.add_argument("--people-file")
     parser.add_argument("--dry-run", action="store_true", help="fetch and log, send nothing")
+    parser.add_argument(
+        "--preview", type=Path, metavar="DIR", help="dry run that also writes each email to DIR"
+    )
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -139,7 +161,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     notifier = Notifier(config)
-    return notifier.dry_run() if args.dry_run else notifier.run()
+    if args.dry_run or args.preview:
+        return notifier.dry_run(args.preview)
+    return notifier.run()
 
 
 if __name__ == "__main__":

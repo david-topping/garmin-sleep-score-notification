@@ -1,49 +1,47 @@
+import pytest
 import requests
+import responses
+from responses import matchers
 
-from garmin_sleep_score_notification import uptime_kuma
 from garmin_sleep_score_notification.uptime_kuma import UptimeKuma
 
-PUSH_URL = "https://status.westwallaby.co.uk/api/push/AntiPesto42?status=up&msg=OK&ping="
+PUSH = "https://status.westwallaby.co.uk/api/push/AntiPesto42"
+COPIED_URL = PUSH + "?status=up&msg=OK&ping="
 
 
-class FakeGet:
-    def __init__(self, error=None):
-        self.calls = []
-        self.error = error
-
-    def __call__(self, url, params, timeout):
-        self.calls.append((url, params, timeout))
-        if self.error:
-            raise self.error
-        return self
-
-    def raise_for_status(self):
-        pass
+def test_no_url_skips_push():
+    with responses.RequestsMock() as rsps:
+        assert UptimeKuma(None).up("sent wallace") is False
+    assert len(rsps.calls) == 0
 
 
-def test_no_url_skips_push(monkeypatch):
-    get = FakeGet()
-    monkeypatch.setattr(uptime_kuma.requests, "get", get)
-    assert UptimeKuma(None).up("sent wallace") is False
-    assert get.calls == []
+@pytest.mark.parametrize("status", ["up", "down"])
+@responses.activate
+def test_replaces_query_from_copied_url(status):
+    responses.get(PUSH, match=[matchers.query_param_matcher({"status": status, "msg": "wallace: KeyError"})])
+    kuma = UptimeKuma(COPIED_URL)
+    assert getattr(kuma, status)("wallace: KeyError") is True
 
 
-def test_replaces_query_from_copied_url(monkeypatch):
-    get = FakeGet()
-    monkeypatch.setattr(uptime_kuma.requests, "get", get)
-
-    assert UptimeKuma(PUSH_URL).down("wallace: KeyError") is True
-
-    ((url, params, timeout),) = get.calls
-    assert url == "https://status.westwallaby.co.uk/api/push/AntiPesto42"
-    assert params == {"status": "down", "msg": "wallace: KeyError"}
-    assert timeout <= 10
+@responses.activate
+def test_message_is_truncated():
+    responses.get(PUSH, match=[matchers.query_param_matcher({"status": "up", "msg": "t" * 200})])
+    assert UptimeKuma(PUSH).up("t" * 500) is True
 
 
-def test_failure_is_swallowed_and_token_not_logged(monkeypatch, caplog):
-    get = FakeGet(error=requests.ConnectionError(PUSH_URL))
-    monkeypatch.setattr(uptime_kuma.requests, "get", get)
+@responses.activate
+def test_timeout_is_short():
+    responses.get(PUSH, match=[matchers.request_kwargs_matcher({"timeout": 10})])
+    assert UptimeKuma(PUSH).up("ok") is True
 
-    assert UptimeKuma(PUSH_URL).up("sent gromit") is False
+
+@pytest.mark.parametrize(
+    "reply",
+    [{"body": requests.ConnectionError(COPIED_URL)}, {"status": 500, "body": COPIED_URL}],
+)
+@responses.activate
+def test_failure_is_swallowed_and_token_not_logged(caplog, reply):
+    responses.get(PUSH, **reply)
+    assert UptimeKuma(COPIED_URL).up("sent gromit") is False
     assert "AntiPesto42" not in caplog.text
-    assert "ConnectionError" in caplog.text
+    assert "push failed" in caplog.text

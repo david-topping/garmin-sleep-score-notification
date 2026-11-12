@@ -9,6 +9,8 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "garminconnect>=0.3.11",
+    "jinja2>=3.1.6",
+    "mjml-python>=1.4.2",
     "pillow>=10.4",
     "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
@@ -16,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-garmin-auth-setup = "garmin_sleep_score_notification.auth_setup:main"
+garmin-auth-setup = "garmin_sleep_score_notification.garmin.auth_setup:main"
 garmin-sleep-notify = "garmin_sleep_score_notification.notify:main"
 
 [build-system]
@@ -25,8 +27,21 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--import-mode=importlib", "--strict-markers"]
+
+[tool.coverage.run]
+source = ["garmin_sleep_score_notification"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "responses>=0.26.3",
+    "syrupy>=7.0.0",
+    "time-machine>=3.6.0",
 ]
